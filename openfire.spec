@@ -1,7 +1,7 @@
 Summary: Openfire XMPP Server
 Name: openfire
 Version: %{OPENFIRE_VERSION}
-Release: 99
+Release: 100
 BuildRoot: %{_builddir}/%{name}-root
 Source0: %{OPENFIRE_SOURCE}
 Group: Applications/Communications
