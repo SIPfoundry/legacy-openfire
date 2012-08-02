@@ -868,28 +868,51 @@ public class MultiUserChatServiceImpl implements Component, MultiUserChatService
         MUCPersistenceManager.setProperty(chatServiceName, "create.anyone", Boolean.toString(roomCreationRestricted));
     }
 
+    public void addUsersAllowedToCreate(Collection<String> userJIDs) {
+    	boolean listChanged = false;
+    	
+    	for(String userJID: userJIDs) {
+            // Update the list of allowed JIDs to create MUC rooms. Since we are updating the instance
+            // variable there is no need to restart the service
+            listChanged |= allowedToCreate.add(userJID.trim().toLowerCase());    		
+    	}
+
+    	// if nothing was added, there's nothing to update
+    	if(listChanged) {
+            // CopyOnWriteArray does not allow sorting, so do sorting in temp list.
+            ArrayList<String> tempList = new ArrayList<String>(allowedToCreate);
+            Collections.sort(tempList);
+            allowedToCreate = new CopyOnWriteArrayList<String>(tempList);
+            // Update the config.
+            MUCPersistenceManager.setProperty(chatServiceName, "create.jid", fromCollection(allowedToCreate));
+    	}
+    }
+    
     public void addUserAllowedToCreate(String userJID) {
-        // Update the list of allowed JIDs to create MUC rooms. Since we are updating the instance
-        // variable there is no need to restart the service
-        allowedToCreate.add(userJID.trim().toLowerCase());
-        // CopyOnWriteArray does not allow sorting, so do sorting in temp list.
-        ArrayList<String> tempList = new ArrayList<String>(allowedToCreate);
-        Collections.sort(tempList);
-        allowedToCreate = new CopyOnWriteArrayList<String>(tempList);
-        // Update the config.
-        String[] jids = new String[allowedToCreate.size()];
-        jids = allowedToCreate.toArray(jids);
-        MUCPersistenceManager.setProperty(chatServiceName, "create.jid", fromArray(jids));
+        List<String> asList = new ArrayList<String>();
+        asList.add(userJID);
+    	addUsersAllowedToCreate(asList);
     }
 
+    public void removeUsersAllowedToCreate(Collection<String> userJIDs) {
+    	boolean listChanged = false;
+    	
+    	for(String userJID: userJIDs) {
+            // Update the list of allowed JIDs to create MUC rooms. Since we are updating the instance
+            // variable there is no need to restart the service
+            listChanged |= allowedToCreate.remove(userJID.trim().toLowerCase());    		
+    	}
+    	
+    	// if none of the JIDs were on the list, there's nothing to update
+    	if(listChanged) {
+            MUCPersistenceManager.setProperty(chatServiceName, "create.jid", fromCollection(allowedToCreate));
+    	}
+    }
+    
     public void removeUserAllowedToCreate(String userJID) {
-        // Update the list of allowed JIDs to create MUC rooms. Since we are updating the instance
-        // variable there is no need to restart the service
-        allowedToCreate.remove(userJID.trim().toLowerCase());
-        // Update the config.
-        String[] jids = new String[allowedToCreate.size()];
-        jids = allowedToCreate.toArray(jids);
-        MUCPersistenceManager.setProperty(chatServiceName, "create.jid", fromArray(jids));
+        List<String> asList = new ArrayList<String>();
+        asList.add(userJID);
+    	removeUsersAllowedToCreate(asList);
     }
 
     public void initialize(XMPPServer server) {
@@ -1430,10 +1453,10 @@ public class MultiUserChatServiceImpl implements Component, MultiUserChatService
     }
 
     /**
-     * Converts an array to a comma-delimitted String.
+     * Converts an array to a comma-delimited String.
      *
      * @param array the array.
-     * @return a comma delimtted String of the array values.
+     * @return a comma delimited String of the array values.
      */
     private static String fromArray(String [] array) {
         StringBuilder buf = new StringBuilder();
@@ -1444,6 +1467,21 @@ public class MultiUserChatServiceImpl implements Component, MultiUserChatService
             }
         }
         return buf.toString();
+    }
+    
+    /**
+     * Converts a collection to a comma-delimited String.
+     *
+     * @param coll the collection.
+     * @return a comma delimited String of the array values.
+     */
+    private static String fromCollection(Collection<String> coll) {
+        StringBuilder buf = new StringBuilder();
+        for (String elem: coll) {
+            buf.append(elem).append(",");
+        }
+        int endPos = buf.length() > 1 ? buf.length() - 1 : 0;
+        return buf.substring(0, endPos);
     }
     
     public boolean isHidden() {
