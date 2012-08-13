@@ -661,24 +661,37 @@ public class IQPEPHandler extends IQHandler implements ServerIdentitiesProvider,
     }
 
     public void userDeleting(User user, Map<String, Object> params) {
-        final JID bareJID = XMPPServer.getInstance().createJID(user.getUsername(), null);
+    	
+        final JID bareJID = XMPPServer.getInstance().createJID(user.getUsername(), null);        
         final PEPService pepService = pepServiceManager.getPEPService(bareJID.toString());
 
         if (pepService == null) {
             return;
         }
+        // Delete the user's PEP service, finally.
+        pepServiceManager.delete(bareJID);
+    }
 
-        // Remove the user's PEP service, finally.
-        pepServiceManager.remove(bareJID);
+    public void unavailableSession(ClientSession session, Presence presence) {
+		try {
+			final JID bareJID = XMPPServer.getInstance().createJID(session.getUsername(), null);
+			final PEPService pepService = pepServiceManager.getPEPService(bareJID.toString());
+
+			if (pepService == null) {
+				return;
+			}
+
+			// Remove the user's PEP service, finally.
+			pepServiceManager.remove(bareJID);
+			
+		} catch (UserNotFoundException e) {
+
+		}
     }
 
     /**
      *  The following functions are unimplemented required interface methods.
      */
-    public void unavailableSession(ClientSession session, Presence presence) {
-        // Do nothing
-    }
-
     public void presenceChanged(ClientSession session, Presence presence) {
         // Do nothing
     }
