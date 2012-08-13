@@ -70,16 +70,11 @@ public class PEPServiceManager {
 		final Lock lock = CacheFactory.getLock(jid, pepServices);
 		try {
 			lock.lock();
-			if (pepServices.containsKey(jid)) {
-				// lookup in cache
-				pepService = pepServices.get(jid);
-			} else {
+			// lookup in cache
+			pepService = pepServices.get(jid);
+			if (pepService == null) {
 				// lookup in database.
 				pepService = loadPEPServiceFromDB(jid);
-				
-				// always add to the cache, even if it doesn't exist. This will
-				// prevent future database lookups.
-				pepServices.put(jid, pepService);
 			}
 		} finally {
 			lock.unlock();
@@ -108,6 +103,7 @@ public class PEPServiceManager {
 			if (pepService == null) {
 				pepService = new PEPService(XMPPServer.getInstance(), bareJID);
 				pepServices.put(bareJID, pepService);
+				pubSubEngine.start(pepService);
 
 				if (Log.isDebugEnabled()) {
 					Log.debug("PEPService created for : " + bareJID);
@@ -146,7 +142,7 @@ public class PEPServiceManager {
 				// Create a new PEPService
 				pepService = new PEPService(XMPPServer.getInstance(), serviceID);
 				pepServices.put(serviceID, pepService);
-				pubSubEngine.start(pepService);
+				start(pepService);
 
 				if (Log.isDebugEnabled()) {
 					Log.debug("PEP: Restored service for " + serviceID
@@ -168,13 +164,16 @@ public class PEPServiceManager {
 	 * @param owner
 	 *            The JID of the owner of the service to be deleted.
 	 */
-	public void remove(JID owner) {
+	public void delete(JID owner) {
 		PEPService service = null;
 
 		final Lock lock = CacheFactory.getLock(owner, pepServices);
 		try {
-			lock.lock();
+			lock.lock();			
 			service = pepServices.remove(owner.toBareJID());
+			stop(service);
+			if (Log.isDebugEnabled()) 
+				Log.debug("PEP: Deleted PEPService. Number left=" + Integer.toString(pepServices.size()));
 		} finally {
 			lock.unlock();
 		}
@@ -193,6 +192,31 @@ public class PEPServiceManager {
 		rootNode.delete();
 	}
 
+	/**
+	 * Removes the {@link PEPService} belonging to the specified owner from memory.
+	 * 
+	 * @param owner
+	 *            The JID of the owner of the service to be removed.
+	 */
+	public void remove(JID owner) {
+		PEPService service = null;
+
+		final Lock lock = CacheFactory.getLock(owner, pepServices);
+		try {
+			lock.lock();			
+			service = pepServices.remove(owner.toBareJID());
+			stop(service);
+			if (Log.isDebugEnabled()) 
+				Log.debug("PEP: Removed PEPService. Number left=" + Integer.toString(pepServices.size()));
+		} finally {
+			lock.unlock();
+		}
+
+		if (service == null) {
+			return;
+		}
+	}
+	
 	public void start(PEPService pepService) {
 		pubSubEngine.start(pepService);
 	}
@@ -210,6 +234,11 @@ public class PEPServiceManager {
 
 		pubSubEngine = null;
 	}
+	
+	public void stop(PEPService pepService) {
+		pubSubEngine.shutdown(pepService);
+	}
+
 
 	public void process(PEPService service, IQ iq) {
 		pubSubEngine.process(service, iq);
@@ -219,8 +248,4 @@ public class PEPServiceManager {
 		return pepServices.get(owner) != null;
 	}
 	
-	// mimics Shutdown, without killing the timer.
-	public void unload(PEPService service) {	
-		pubSubEngine.shutdown(service);
-	}
 }

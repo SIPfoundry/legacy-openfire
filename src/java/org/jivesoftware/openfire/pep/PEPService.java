@@ -81,7 +81,7 @@ public class PEPService implements PubSubService, Cacheable {
      * Timer to save published items to the database or remove deleted or old
      * items.
      */
-    private static final Timer timer = new Timer("PEP service maintenance");
+    private final Timer timer = new Timer();
 
     /**
      * Date format to use for time stamps in delayed event notifications.
@@ -186,10 +186,11 @@ public class PEPService implements PubSubService, Cacheable {
 
         // Save or delete published items from the database every 2 minutes
         // starting in 2 minutes (default values)
-        publishedItemTask = new PublishedItemTask(this) {
+        PublishedItemTask newpublishedItemTask = new PublishedItemTask(this) {
         	
         };
-        timer.schedule(publishedItemTask, items_task_timeout, items_task_timeout);
+        setPublishedItemTask(newpublishedItemTask);
+        timer.schedule(newpublishedItemTask, items_task_timeout, items_task_timeout);
 
         // Load default configuration for leaf nodes
         leafDefaultConfiguration = PubSubPersistenceManager.loadDefaultConfiguration(this, true);
