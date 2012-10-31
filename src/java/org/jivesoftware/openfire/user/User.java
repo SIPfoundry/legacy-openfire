@@ -205,11 +205,11 @@ public class User implements Cacheable, Externalizable, Result {
         if (name != null && name.matches("\\s*")) {
         	name = null;
         }
-        
+
         if (name == null && UserManager.getUserProvider().isNameRequired()) {
             throw new IllegalArgumentException("User provider requires name.");
         }
-        
+
         try {
             String originalName = this.name;
             UserManager.getUserProvider().setName(username, name);
@@ -258,7 +258,7 @@ public class User implements Cacheable, Externalizable, Result {
         if (UserManager.getUserProvider().isReadOnly()) {
             throw new UnsupportedOperationException("User provider is read-only.");
         }
-        
+
         if (email != null && email.matches("\\s*")) {
         	email = null;
         }
@@ -387,7 +387,8 @@ public class User implements Cacheable, Externalizable, Result {
         }
     }
 
-    public int getCachedSize() {
+    @Override
+	public int getCachedSize() {
         // Approximate the size of the object in bytes by calculating the size
         // of each field.
         int size = 0;
@@ -434,7 +435,7 @@ public class User implements Cacheable, Externalizable, Result {
             Map<String,Object> eventParams = new HashMap<String,Object>();
             Object answer;
             String keyString = (String) key;
-            synchronized (keyString.intern()) {
+            synchronized ((getName() + keyString).intern()) {
                 if (properties.containsKey(keyString)) {
                     String originalValue = properties.get(keyString);
                     answer = properties.put(keyString, (String)value);
@@ -481,16 +482,19 @@ public class User implements Cacheable, Externalizable, Result {
                 Iterator iter = properties.entrySet().iterator();
                 Map.Entry current = null;
 
-                public boolean hasNext() {
+                @Override
+				public boolean hasNext() {
                     return iter.hasNext();
                 }
 
-                public Object next() {
+                @Override
+				public Object next() {
                     current = (Map.Entry)iter.next();
                     return current;
                 }
 
-                public void remove() {
+                @Override
+				public void remove() {
                     if (current == null) {
                         throw new IllegalStateException();
                     }
@@ -585,7 +589,8 @@ public class User implements Cacheable, Externalizable, Result {
         }
     }
 
-    public void writeExternal(ObjectOutput out) throws IOException {
+    @Override
+	public void writeExternal(ObjectOutput out) throws IOException {
         ExternalizableUtil.getInstance().writeSafeUTF(out, username);
         ExternalizableUtil.getInstance().writeSafeUTF(out, getName());
         ExternalizableUtil.getInstance().writeBoolean(out, email != null);
@@ -596,7 +601,8 @@ public class User implements Cacheable, Externalizable, Result {
         ExternalizableUtil.getInstance().writeLong(out, modificationDate.getTime());
     }
 
-    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+    @Override
+	public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         username = ExternalizableUtil.getInstance().readSafeUTF(in);
         name = ExternalizableUtil.getInstance().readSafeUTF(in);
         if (ExternalizableUtil.getInstance().readBoolean(in)) {
@@ -605,11 +611,12 @@ public class User implements Cacheable, Externalizable, Result {
         creationDate = new Date(ExternalizableUtil.getInstance().readLong(in));
         modificationDate = new Date(ExternalizableUtil.getInstance().readLong(in));
     }
-    
+
     /*
      * (non-Javadoc)
      * @see org.jivesoftware.util.resultsetmanager.Result#getUID()
      */
+	@Override
 	public String getUID()
 	{
 		return username;
