@@ -82,7 +82,7 @@ public interface ExternalizableUtilStrategy {
      * @param stringList the List of Strings.
      * @throws IOException if an error occurs.
      */
-    void writeStringList(DataOutput out, List stringList) throws IOException;
+    void writeStringList(DataOutput out, List<String> stringList) throws IOException;
 
     /**
      * Reads a List of Strings. This method will return <tt>null</tt> if the List
@@ -148,9 +148,9 @@ public interface ExternalizableUtilStrategy {
 
     int readExternalizableMap(DataInput in, Map<String, ? extends Externalizable> map, ClassLoader loader) throws IOException;
 
-    void writeSerializableMap(DataOutput out, Map<String, ? extends Serializable> map) throws IOException;
+    void writeSerializableMap(DataOutput out, Map<? extends Serializable, ? extends Serializable> map) throws IOException;
 
-    int readSerializableMap(DataInput in, Map<String, ? extends Serializable> map, ClassLoader loader) throws IOException;
+    int readSerializableMap(DataInput in, Map<? extends Serializable, ? extends Serializable> map, ClassLoader loader) throws IOException;
     
     void writeStringsMap(DataOutput out, Map<String, Set<String>> map)  throws IOException;
 

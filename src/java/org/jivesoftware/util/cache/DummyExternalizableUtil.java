@@ -206,11 +206,11 @@ public class DummyExternalizableUtil implements ExternalizableUtilStrategy {
         return 0;
     }
 
-    public void writeSerializableMap(DataOutput out, Map<String, ? extends Serializable> map) throws IOException {
+    public void writeSerializableMap(DataOutput out, Map<? extends Serializable, ? extends Serializable> map) throws IOException {
         // Do nothing
     }
 
-    public int readSerializableMap(DataInput in, Map<String, ? extends Serializable> map, ClassLoader loader)
+    public int readSerializableMap(DataInput in, Map<? extends Serializable, ? extends Serializable> map, ClassLoader loader)
             throws IOException {
         // Do nothing
         return 0;
