@@ -25,9 +25,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 import org.jivesoftware.openfire.lockout.LockOutManager;
+import org.jivesoftware.openfire.provider.AuthProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.Blowfish;
-import org.jivesoftware.util.ClassUtils;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.PropertyEventDispatcher;
@@ -50,7 +51,7 @@ public class AuthFactory {
 
 	private static final Logger Log = LoggerFactory.getLogger(AuthFactory.class);
 
-    private static AuthProvider authProvider = null;
+    private static AuthProvider authProvider = ProviderFactory.getAuthProvider();;
     private static MessageDigest digest;
     private static final Object DIGEST_LOCK = new Object();
     private static Blowfish cipher = null;
@@ -66,23 +67,23 @@ public class AuthFactory {
         // Load an auth provider.
         initProvider();
 
-        // Detect when a new auth provider class is set 
+        // Detect when a new auth provider class is set
         PropertyEventListener propListener = new PropertyEventListener() {
-            public void propertySet(String property, Map params) {
+            public void propertySet(String property, Map<String, Object> params) {
                 if ("provider.auth.className".equals(property)) {
                     initProvider();
                 }
             }
 
-            public void propertyDeleted(String property, Map params) {
+            public void propertyDeleted(String property, Map<String, Object> params) {
                 //Ignore
             }
 
-            public void xmlPropertySet(String property, Map params) {
+            public void xmlPropertySet(String property, Map<String, Object> params) {
                 //Ignore
             }
 
-            public void xmlPropertyDeleted(String property, Map params) {
+            public void xmlPropertyDeleted(String property, Map<String, Object> params) {
                 //Ignore
             }
         };
@@ -90,22 +91,7 @@ public class AuthFactory {
     }
 
     private static void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.auth.className");
-
-        String className = JiveGlobals.getProperty("provider.auth.className",
-                "org.jivesoftware.openfire.auth.DefaultAuthProvider");
-        // Check if we need to reset the auth provider class 
-        if (authProvider == null || !className.equals(authProvider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                authProvider = (AuthProvider)c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading auth provider: " + className, e);
-                authProvider = new DefaultAuthProvider();
-            }
-        }
+    	authProvider = ProviderFactory.getAuthProvider();
     }
 
     /**

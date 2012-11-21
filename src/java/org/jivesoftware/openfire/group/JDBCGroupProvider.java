@@ -82,7 +82,7 @@ public class JDBCGroupProvider extends AbstractGroupProvider {
     private String loadAdminsSQL;
     private boolean useConnectionProvider;
 
-    private XMPPServer server = XMPPServer.getInstance();  
+    private XMPPServer server = XMPPServer.getInstance();
 
     /**
      * Constructor of the JDBCGroupProvider class.
@@ -123,8 +123,9 @@ public class JDBCGroupProvider extends AbstractGroupProvider {
     }
 
     private Connection getConnection() throws SQLException {
-        if (useConnectionProvider)
-            return DbConnectionManager.getConnection();
+        if (useConnectionProvider) {
+			return DbConnectionManager.getConnection();
+		}
         return DriverManager.getConnection(connectionString);
     }
 
@@ -184,7 +185,7 @@ public class JDBCGroupProvider extends AbstractGroupProvider {
                         userJID = new JID(user);
                     }
                     else {
-                        userJID = server.createJID(user, null); 
+                        userJID = server.createJID(user, null);
                     }
                     members.add(userJID);
                 }

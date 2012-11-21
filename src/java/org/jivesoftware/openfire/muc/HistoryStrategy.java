@@ -28,7 +28,8 @@ import java.util.ListIterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.jivesoftware.openfire.muc.cluster.UpdateHistoryStrategy;
-import org.jivesoftware.openfire.muc.spi.MUCPersistenceManager;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.cache.CacheFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,8 +38,8 @@ import org.xmpp.packet.Message;
 /**
  * <p>Multi-User Chat rooms may cache history of the conversations in the room in order to
  * play them back to newly arriving members.</p>
- * 
- * <p>This class is an internal component of MUCRoomHistory that describes the strategy that can 
+ *
+ * <p>This class is an internal component of MUCRoomHistory that describes the strategy that can
  * be used, and provides a method of administering the history behavior.</p>
  *
  * @author Gaston Dombiak
@@ -85,7 +86,12 @@ public class HistoryStrategy {
     private String contextSubdomain = null;
 
     /**
-     * Create a history strategy with the given parent strategy (for defaults) or null if no 
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
+
+    /**
+     * Create a history strategy with the given parent strategy (for defaults) or null if no
      * parent exists.
      *
      * @param parentStrategy The parent strategy of this strategy or null if none exists.
@@ -122,7 +128,7 @@ public class HistoryStrategy {
         }
         this.maxNumber = max;
         if (contextPrefix != null){
-            MUCPersistenceManager.setProperty(contextSubdomain, contextPrefix + ".maxNumber", Integer.toString(maxNumber));
+            provider.setProperty(contextSubdomain, contextPrefix + ".maxNumber", Integer.toString(maxNumber));
         }
         if (parent == null) {
             // Update the history strategy of the MUC service
@@ -144,7 +150,7 @@ public class HistoryStrategy {
             type = newType;
         }
         if (contextPrefix != null){
-            MUCPersistenceManager.setProperty(contextSubdomain, contextPrefix + ".type", type.toString());
+            provider.setProperty(contextSubdomain, contextPrefix + ".type", type.toString());
         }
         if (parent == null) {
             // Update the history strategy of the MUC service
@@ -162,7 +168,7 @@ public class HistoryStrategy {
     }
 
     /**
-     * Add a message to the current chat history. The strategy type will determine what 
+     * Add a message to the current chat history. The strategy type will determine what
      * actually happens to the message.
      *
      * @param packet The packet to add to the chatroom's history.
@@ -226,7 +232,7 @@ public class HistoryStrategy {
 
     /**
      * Obtain the current history as an iterator of messages to play back to a new room member.
-     * 
+     *
      * @return An iterator of Message objects to be sent to the new room member.
      */
     public Iterator<Message> getMessageHistory(){
@@ -237,10 +243,10 @@ public class HistoryStrategy {
     }
 
     /**
-     * Obtain the current history to be iterated in reverse mode. This means that the returned list 
-     * iterator will be positioned at the end of the history so senders of this message must 
+     * Obtain the current history to be iterated in reverse mode. This means that the returned list
+     * iterator will be positioned at the end of the history so senders of this message must
      * traverse the list in reverse mode.
-     * 
+     *
      * @return A list iterator of Message objects positioned at the end of the list.
      */
     public ListIterator<Message> getReverseMessageHistory(){
@@ -289,8 +295,8 @@ public class HistoryStrategy {
     public void setContext(String subdomain, String prefix) {
         this.contextSubdomain = subdomain;
         this.contextPrefix = prefix;
-        setTypeFromString(MUCPersistenceManager.getProperty(subdomain, prefix + ".type"));
-        String maxNumberString = MUCPersistenceManager.getProperty(subdomain, prefix + ".maxNumber");
+        setTypeFromString(provider.getProperty(subdomain, prefix + ".type"));
+        String maxNumberString = provider.getProperty(subdomain, prefix + ".maxNumber");
         if (maxNumberString != null && maxNumberString.trim().length() > 0){
             try {
                 this.maxNumber = Integer.parseInt(maxNumberString);
@@ -315,7 +321,7 @@ public class HistoryStrategy {
     /**
      * Returns the message within the history of the room that has changed the
      * room's subject.
-     * 
+     *
      * @return the latest room subject change or null if none exists yet.
      */
     public Message getChangedSubject() {

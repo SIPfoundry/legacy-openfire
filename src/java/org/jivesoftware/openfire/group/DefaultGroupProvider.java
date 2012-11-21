@@ -31,6 +31,8 @@ import java.util.List;
 
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.GroupPropertiesProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;
@@ -50,14 +52,10 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         "UPDATE ofGroup SET description=? WHERE groupName=?";
     private static final String SET_GROUP_NAME_1 =
         "UPDATE ofGroup SET groupName=? WHERE groupName=?";
-    private static final String SET_GROUP_NAME_2 =
-        "UPDATE ofGroupProp SET groupName=? WHERE groupName=?";
     private static final String SET_GROUP_NAME_3 =
         "UPDATE ofGroupUser SET groupName=? WHERE groupName=?";
     private static final String DELETE_GROUP_USERS =
         "DELETE FROM ofGroupUser WHERE groupName=?";
-    private static final String DELETE_PROPERTIES =
-        "DELETE FROM ofGroupProp WHERE groupName=?";
     private static final String DELETE_GROUP =
         "DELETE FROM ofGroup WHERE groupName=?";
     private static final String GROUP_COUNT = "SELECT count(*) FROM ofGroup";
@@ -80,7 +78,14 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
 
     private XMPPServer server = XMPPServer.getInstance();
 
-    public Group createGroup(String name) {
+	/**
+	 * Provider for underlying storage
+	 */
+	private final GroupPropertiesProvider propsProvider = ProviderFactory
+			.getGroupPropertiesProvider();
+
+	@Override
+	public Group createGroup(String name) {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -129,7 +134,8 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         return new Group(name, description, members, administrators);
     }
 
-    public void setDescription(String name, String description) throws GroupNotFoundException {
+    @Override
+	public void setDescription(String name, String description) throws GroupNotFoundException {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -148,7 +154,8 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         }
     }
 
-    public void setName(String oldName, String newName) throws GroupAlreadyExistsException
+    @Override
+	public void setName(String oldName, String newName) throws GroupAlreadyExistsException
     {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -161,16 +168,14 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
             
-            pstmt = con.prepareStatement(SET_GROUP_NAME_2);
-            pstmt.setString(1, newName);
-            pstmt.setString(2, oldName);
-            pstmt.executeUpdate();
-            DbConnectionManager.fastcloseStmt(pstmt);
+			boolean renamed = propsProvider.setName(oldName, newName);
             
-            pstmt = con.prepareStatement(SET_GROUP_NAME_3);
-            pstmt.setString(1, newName);
-            pstmt.setString(2, oldName);
-            pstmt.executeUpdate();
+			if (renamed) {
+	            pstmt = con.prepareStatement(SET_GROUP_NAME_3);
+	            pstmt.setString(1, newName);
+	            pstmt.setString(2, oldName);
+	            pstmt.executeUpdate();
+			}
         }
         catch (SQLException e) {
             Log.error(e.getMessage(), e);
@@ -182,7 +187,8 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         }
     }
 
-    public void deleteGroup(String groupName) {
+    @Override
+	public void deleteGroup(String groupName) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -195,15 +201,15 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
             DbConnectionManager.fastcloseStmt(pstmt);
             
             // Remove all properties of the group.
-            pstmt = con.prepareStatement(DELETE_PROPERTIES);
-            pstmt.setString(1, groupName);
-            pstmt.executeUpdate();
-            DbConnectionManager.fastcloseStmt(pstmt);
+			boolean propsDeleted = propsProvider
+					.deleteGroupProperties(groupName);
             
-            // Remove the group entry.
-            pstmt = con.prepareStatement(DELETE_GROUP);
-            pstmt.setString(1, groupName);
-            pstmt.executeUpdate();
+			if (propsDeleted) {
+	            // Remove the group entry.
+	            pstmt = con.prepareStatement(DELETE_GROUP);
+	            pstmt.setString(1, groupName);
+	            pstmt.executeUpdate();
+			}
         }
         catch (SQLException e) {
             Log.error(e.getMessage(), e);
@@ -237,6 +243,11 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         return count;
     }
 
+	public Collection<String> getSharedGroupsNames() {
+		// Get the list of shared groups from the database
+		return propsProvider.getSharedGroupsNames();
+	}
+
     public Collection<String> getGroupNames() {
         List<String> groupNames = new ArrayList<String>();
         Connection con = null;
@@ -252,9 +263,9 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         }
         catch (SQLException e) {
             Log.error(e.getMessage(), e);
+		} finally {
+			DbConnectionManager.closeConnection(rs, pstmt, con);
         }
-        finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);       }
         return groupNames;
     }
 
@@ -306,7 +317,8 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         return groupNames;
     }
 
-    public void addMember(String groupName, JID user, boolean administrator) {
+    @Override
+	public void addMember(String groupName, JID user, boolean administrator) {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -325,7 +337,8 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         }
     }
 
-    public void updateMember(String groupName, JID user, boolean administrator) {
+    @Override
+	public void updateMember(String groupName, JID user, boolean administrator) {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -344,7 +357,8 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         }
     }
 
-    public void deleteMember(String groupName, JID user) {
+    @Override
+	public void deleteMember(String groupName, JID user) {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -362,15 +376,18 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         }
     }
 
-    public boolean isReadOnly() {
+    @Override
+	public boolean isReadOnly() {
         return false;
     }
 
-    public Collection<String> search(String query) {
+    @Override
+	public Collection<String> search(String query) {
         return search(query, 0, Integer.MAX_VALUE);
     }
 
-    public Collection<String> search(String query, int startIndex, int numResults) {
+    @Override
+	public Collection<String> search(String query, int startIndex, int numResults) {
         if (query == null || "".equals(query)) {
             return Collections.emptyList();
         }
@@ -420,11 +437,13 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         return groupNames;
     }
 
-    public boolean isSearchSupported() {
+    @Override
+	public boolean isSearchSupported() {
         return true;
     }
 
-    public boolean isSharingSupported() {
+    @Override
+	public boolean isSharingSupported() {
         return true;
     }
 
@@ -466,5 +485,4 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         }
         return members;
     }
-
 }

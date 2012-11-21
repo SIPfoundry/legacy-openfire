@@ -37,6 +37,8 @@ import org.jivesoftware.openfire.pubsub.cluster.CancelSubscriptionTask;
 import org.jivesoftware.openfire.pubsub.cluster.ModifySubscriptionTask;
 import org.jivesoftware.openfire.pubsub.cluster.NewSubscriptionTask;
 import org.jivesoftware.openfire.pubsub.cluster.RemoveNodeTask;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
 import org.jivesoftware.util.LocaleUtils;
@@ -191,6 +193,11 @@ public abstract class Node {
      */
     protected Map<String, NodeSubscription> subscriptionsByJID =
             new ConcurrentHashMap<String, NodeSubscription>();
+
+    /**
+     * Provider for underlying storage
+     */
+    protected final PubSubProvider provider = ProviderFactory.getPubsubProvider();
 
     Node(PubSubService service, CollectionNode parent, String nodeID, JID creator) {
         this.service = service;
@@ -362,7 +369,7 @@ public abstract class Node {
 
         if (savedToDB) {
             // Add or update the affiliate in the database
-            PubSubPersistenceManager.saveAffiliation(this, affiliate, created);
+            provider.saveAffiliation(service, this, affiliate, created);
         }
         
         // Update the other members with the new affiliation
@@ -385,7 +392,7 @@ public abstract class Node {
         affiliates.remove(affiliate);
         if (savedToDB) {
             // Remove the affiliate from the database
-            PubSubPersistenceManager.removeAffiliation(this, affiliate);
+            provider.removeAffiliation(service, this, affiliate);
         }
     }
 
@@ -438,9 +445,8 @@ public abstract class Node {
     public Collection<NodeSubscription> getAllSubscriptions() {
         if (isMultipleSubscriptionsEnabled()) {
             return subscriptionsByID.values();
-        } else {
-            return subscriptionsByJID.values();
         }
+        return subscriptionsByJID.values();
     }
 
     /**
@@ -1291,13 +1297,11 @@ public abstract class Node {
                 // Node sends notifications only to only users so return true
                 return true;
             }
-            else {
-                // Check if there is a subscription configured to only send notifications
-                // based on the user presence
-                for (NodeSubscription subscription : subscriptions) {
-                    if (!subscription.getPresenceStates().isEmpty()) {
-                        return true;
-                    }
+            // Check if there is a subscription configured to only send notifications
+            // based on the user presence
+            for (NodeSubscription subscription : subscriptions) {
+                if (!subscription.getPresenceStates().isEmpty()) {
+                    return true;
                 }
             }
         }
@@ -1771,16 +1775,16 @@ public abstract class Node {
     public void saveToDB() {
         // Make the room persistent
         if (!savedToDB) {
-            PubSubPersistenceManager.createNode(this);
+            provider.createNode(service, this);
             // Set that the node is now in the DB
             setSavedToDB(true);
             // Save the existing node affiliates to the DB
             for (NodeAffiliate affialiate : affiliates) {
-                PubSubPersistenceManager.saveAffiliation(this, affialiate, true);
+                provider.saveAffiliation(service, this, affialiate, true);
             }
             // Add new subscriptions to the database
             for (NodeSubscription subscription : subscriptionsByID.values()) {
-                PubSubPersistenceManager.saveSubscription(this, subscription, true);
+                provider.saveSubscription(service, this, subscription, true);
             }
             // Add the new node to the list of available nodes
             service.addNode(this);
@@ -1790,7 +1794,7 @@ public abstract class Node {
             }
         }
         else {
-            PubSubPersistenceManager.updateNode(this);
+            provider.updateNode(service, this);
         }
     }
 
@@ -1850,7 +1854,7 @@ public abstract class Node {
      */
     public boolean delete() {
         // Delete node from the database
-        if (PubSubPersistenceManager.removeNode(this)) {
+        if (provider.removeNode(service, this)) {
             // Remove this node from the parent node (if any)
             if (parent != null) {
                 parent.removeChildNode(this);
@@ -1916,7 +1920,7 @@ public abstract class Node {
             parent.addChildNode(this);
         }
         if (savedToDB) {
-            PubSubPersistenceManager.updateNode(this);
+            provider.updateNode(service, this);
         }
     }
 
@@ -2087,7 +2091,7 @@ public abstract class Node {
         // Generate a subscription ID (override even if one was sent by the client)
         String id = StringUtils.randomString(40);
         // Create new subscription
-        NodeSubscription subscription = new NodeSubscription(this, owner, subscriber, subState, id);
+        NodeSubscription subscription = new NodeSubscription(service, this, owner, subscriber, subState, id);
         // Configure the subscription with the specified configuration (if any)
         if (options != null) {
             subscription.configure(options);
@@ -2096,7 +2100,7 @@ public abstract class Node {
 
         if (savedToDB) {
             // Add the new subscription to the database
-            PubSubPersistenceManager.saveSubscription(this, subscription, true);
+            provider.saveSubscription(service, this, subscription, true);
         }
 
         if (originalIQ != null) {
@@ -2154,7 +2158,7 @@ public abstract class Node {
         }
         if (savedToDB) {
             // Remove the subscription from the database
-            PubSubPersistenceManager.removeSubscription(subscription);
+		provider.removeSubscription(service, this, subscription);
         }
         if (sendToCluster) {
             CacheFactory.doClusterTask(new CancelSubscriptionTask(subscription));
@@ -2314,5 +2318,5 @@ public abstract class Node {
          * Dynamically specify a replyto of the item publisher.
          */
         publisher
-    };
+    }
 }

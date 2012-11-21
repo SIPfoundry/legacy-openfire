@@ -161,7 +161,8 @@ public class LdapGroupProvider extends AbstractGroupProvider {
     	return search(manager.getGroupMemberField(), username);
     }
 
-    public Collection<String> search(String key, String value) {
+    @Override
+	public Collection<String> search(String key, String value) {
         StringBuilder filter = new StringBuilder();
         filter.append("(&");
         filter.append(MessageFormat.format(manager.getGroupSearchFilter(), "*"));
@@ -180,11 +181,13 @@ public class LdapGroupProvider extends AbstractGroupProvider {
         );
     }
 
-    public Collection<String> search(String query) {
+    @Override
+	public Collection<String> search(String query) {
         return search(query, -1, -1);
     }
 
-    public Collection<String> search(String query, int startIndex, int numResults) {
+    @Override
+	public Collection<String> search(String query, int startIndex, int numResults) {
         if (query == null || "".equals(query)) {
             return Collections.emptyList();
         }
@@ -205,7 +208,8 @@ public class LdapGroupProvider extends AbstractGroupProvider {
         );
     }
 
-    public boolean isSearchSupported() {
+    @Override
+	public boolean isSearchSupported() {
         return true;
     }
 
@@ -246,7 +250,7 @@ public class LdapGroupProvider extends AbstractGroupProvider {
         Set<JID> members = new TreeSet<JID>();
         Attribute memberField = a.get(manager.getGroupMemberField());
         if (memberField != null) {
-            NamingEnumeration ne = memberField.getAll();
+            NamingEnumeration<?> ne = memberField.getAll();
             while (ne.hasMore()) {
                 String username = (String) ne.next();
                 // If not posix mode, each group member is stored as a full DN.
@@ -273,10 +277,10 @@ public class LdapGroupProvider extends AbstractGroupProvider {
                             userFilter.append(")");
                             userFilter.append(MessageFormat.format(manager.getSearchFilter(), "*"));
                             userFilter.append(")");
-                            NamingEnumeration usrAnswer = ctx.search("",
+                            NamingEnumeration<SearchResult> usrAnswer = ctx.search("",
                                     userFilter.toString(), searchControls);
                             if (usrAnswer != null && usrAnswer.hasMoreElements()) {
-                                Attribute usernameAttr = ((SearchResult)usrAnswer.next()).getAttributes().get(manager.getUsernameField());
+                                Attribute usernameAttr = usrAnswer.next().getAttributes().get(manager.getUsernameField());
                                 if (usernameAttr != null) {
                                     username = (String)usernameAttr.get();
                                 }

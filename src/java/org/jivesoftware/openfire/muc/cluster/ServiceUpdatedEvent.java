@@ -26,8 +26,9 @@ import java.io.ObjectOutput;
 
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.muc.MultiUserChatService;
-import org.jivesoftware.openfire.muc.spi.MUCPersistenceManager;
 import org.jivesoftware.openfire.muc.spi.MultiUserChatServiceImpl;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.cache.ClusterTask;
 import org.jivesoftware.util.cache.ExternalizableUtil;
 import org.slf4j.Logger;
@@ -41,10 +42,15 @@ import org.slf4j.LoggerFactory;
  * @author Daniel Henninger
  */
 public class ServiceUpdatedEvent implements ClusterTask {
-	
+
 	private static final Logger Log = LoggerFactory.getLogger(ServiceUpdatedEvent.class);
 
     private String subdomain;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
 
     public ServiceUpdatedEvent() {
     }
@@ -61,7 +67,7 @@ public class ServiceUpdatedEvent implements ClusterTask {
         MultiUserChatService service = XMPPServer.getInstance().getMultiUserChatManager().getMultiUserChatService(subdomain);
         if (service != null) {
             if (service instanceof MultiUserChatServiceImpl) {
-                MUCPersistenceManager.refreshProperties(subdomain);
+                provider.refreshProperties(subdomain);
                 ((MultiUserChatServiceImpl)service).initializeSettings();
             }
             else {

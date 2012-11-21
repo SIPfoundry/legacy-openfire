@@ -66,11 +66,13 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
         }
     }
 
-    public Collection<String> getSharedGroupNames() {
+    @Override
+	public Collection<String> getSharedGroupNames() {
         // Return all social group names since every social group is a shared group
         return getGroupNames();
     }
 
+	@Override
 	public Collection<String> getSharedGroupNames(JID user) {
 		// TODO: is there a better way to get the shared Clearspace groups for a given user?
 		Collection<String> result = new ArrayList<String>();
@@ -159,7 +161,7 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
             XMPPServer server = XMPPServer.getInstance();
 
             // Gets the JID from the response
-            List<Element> membersElement = (List<Element>) getGroupMembers(id).elements("return");
+            List<Element> membersElement = getGroupMembers(id).elements("return");
             for (Element memberElement : membersElement) {
 
                 String username = memberElement.element("user").element("username").getText();
@@ -210,7 +212,7 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
      * @return the group.                                                   
      * @throws GroupNotFoundException if a group with that name doesn't exist or there is a problem getting it.
      */
-    private Element getGroupByName(String name) throws GroupNotFoundException {
+    private static Element getGroupByName(String name) throws GroupNotFoundException {
         try {
             // Encode potentially non-ASCII characters
             name = URLUTF8Encoder.encode(name);
@@ -230,7 +232,7 @@ public class ClearspaceGroupProvider extends AbstractGroupProvider {
      * @return all the members of the group.
      * @throws GroupNotFoundException if the groups doesn't exist or there is a problem getting the members.
      */
-    private Element getGroupMembers(long groupID) throws GroupNotFoundException {
+    private static Element getGroupMembers(long groupID) throws GroupNotFoundException {
         try {
             // Gets the members and administrators
             String path = URL_PREFIX + "members/" + groupID;

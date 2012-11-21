@@ -51,6 +51,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Pack200;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import org.dom4j.Attribute;
@@ -58,8 +59,8 @@ import org.dom4j.Document;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.jivesoftware.admin.AdminConsole;
-import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.Version;
 import org.slf4j.Logger;
@@ -411,7 +412,7 @@ public class PluginManager {
 
                         if (classes.exists()) {
                             dev.setClassesDir(classes);
-                            pluginLoader.addURLFile(classes.getAbsoluteFile().toURL());
+                            pluginLoader.addURLFile(classes.getAbsoluteFile().toURI().toURL());
                         }
                     }
                 }
@@ -449,7 +450,7 @@ public class PluginManager {
                 }
 
                 // Check the plugin's database schema (if it requires one).
-                if (!DbConnectionManager.getSchemaManager().checkPluginSchema(plugin)) {
+                if (!ProviderFactory.getConnectionManagerWrapper().checkPluginSchema(plugin)) {
                     // The schema was not there and auto-upgrade failed.
                     Log.error(pluginName + " - " +
                             LocaleUtils.getLocalizedString("upgrade.database.failure"));
@@ -712,7 +713,7 @@ public class PluginManager {
      * @throws IllegalAccessException if not allowed to access the class.
      * @throws InstantiationException if the class could not be created.
      */
-    public Class loadClass(Plugin plugin, String className) throws ClassNotFoundException,
+    public Class<?> loadClass(Plugin plugin, String className) throws ClassNotFoundException,
         IllegalAccessException, InstantiationException {
         PluginClassLoader loader = classloaders.get(plugin);
         return loader.loadClass(className);
@@ -1112,7 +1113,7 @@ public class PluginManager {
                 // Set the date of the JAR file to the newly created folder
                 dir.setLastModified(file.lastModified());
                 Log.debug("PluginManager: Extracting plugin: " + pluginName);
-                for (Enumeration e = zipFile.entries(); e.hasMoreElements();) {
+                for (Enumeration<? extends ZipEntry> e = zipFile.entries(); e.hasMoreElements();) {
                     JarEntry entry = (JarEntry)e.nextElement();
                     File entryFile = new File(dir, entry.getName());
                     // Ignore any manifest.mf entries.

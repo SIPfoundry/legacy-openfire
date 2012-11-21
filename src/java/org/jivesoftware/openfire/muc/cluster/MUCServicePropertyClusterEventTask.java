@@ -20,13 +20,14 @@
 
 package org.jivesoftware.openfire.muc.cluster;
 
-import org.jivesoftware.util.cache.ClusterTask;
-import org.jivesoftware.util.cache.ExternalizableUtil;
-import org.jivesoftware.openfire.muc.spi.MUCPersistenceManager;
-
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.util.cache.ClusterTask;
+import org.jivesoftware.util.cache.ExternalizableUtil;
 
 /**
  * This task updates or deletes a property in a cluster node's muc service property map.
@@ -39,6 +40,11 @@ public class MUCServicePropertyClusterEventTask implements ClusterTask {
     private String service;
     private String key;
     private String value;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
 
     public static MUCServicePropertyClusterEventTask createPutTask(String service, String key, String value) {
         MUCServicePropertyClusterEventTask task = new MUCServicePropertyClusterEventTask();
@@ -63,10 +69,10 @@ public class MUCServicePropertyClusterEventTask implements ClusterTask {
 
     public void run() {
         if (Type.put == event) {
-            MUCPersistenceManager.setLocalProperty(service, key, value);
+            provider.setLocalProperty(service, key, value);
         }
         else if (Type.deleted == event) {
-            MUCPersistenceManager.deleteLocalProperty(service, key);
+            provider.deleteLocalProperty(service, key);
         }
     }
 

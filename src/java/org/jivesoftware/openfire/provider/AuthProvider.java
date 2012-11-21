@@ -18,8 +18,11 @@
  * limitations under the License.
  */
 
-package org.jivesoftware.openfire.auth;
+package org.jivesoftware.openfire.provider;
 
+import org.jivesoftware.openfire.auth.ConnectionException;
+import org.jivesoftware.openfire.auth.InternalUnauthenticatedException;
+import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 
 /**

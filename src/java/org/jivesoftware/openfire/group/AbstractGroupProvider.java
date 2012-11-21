@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.provider.GroupProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;
@@ -29,7 +30,7 @@ public abstract class AbstractGroupProvider implements GroupProvider {
 	
 	private static final Logger Log = LoggerFactory.getLogger(AbstractGroupProvider.class);
 
-    private static final String GROUPLIST_CONTAINERS =
+    protected static final String GROUPLIST_CONTAINERS =
             "SELECT groupName from ofGroupProp " +
             "where name='sharedRoster.groupList' " +
             "AND propValue LIKE ?";

@@ -33,6 +33,7 @@ import java.util.Map;
 
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.database.SequenceManager;
+import org.jivesoftware.openfire.provider.RosterItemProvider;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveConstants;
@@ -77,8 +78,8 @@ public class DefaultRosterItemProvider implements RosterItemProvider {
     private static final String LOAD_ROSTER_ITEM_GROUPS =
             "SELECT rosterID,groupName FROM ofRosterGroups";
 
-    /* (non-Javadoc)
-	 * @see org.jivesoftware.openfire.roster.RosterItemProvider#createItem(java.lang.String, org.jivesoftware.openfire.roster.RosterItem)
+    /**
+     * {@inheritDoc}
 	 */
 	public RosterItem createItem(String username, RosterItem item)
             throws UserAlreadyExistsException
@@ -111,8 +112,8 @@ public class DefaultRosterItemProvider implements RosterItemProvider {
         return item;
     }
 
-    /* (non-Javadoc)
-	 * @see org.jivesoftware.openfire.roster.RosterItemProvider#updateItem(java.lang.String, org.jivesoftware.openfire.roster.RosterItem)
+    /**
+     * {@inheritDoc}
 	 */
 	public void updateItem(String username, RosterItem item) throws UserNotFoundException {
         Connection con = null;
@@ -146,8 +147,8 @@ public class DefaultRosterItemProvider implements RosterItemProvider {
         }
     }
 
-    /* (non-Javadoc)
-	 * @see org.jivesoftware.openfire.roster.RosterItemProvider#deleteItem(java.lang.String, long)
+    /**
+     * {@inheritDoc}
 	 */
 	public void deleteItem(String username, long rosterItemID) {
         // Only try to remove the user if they exist in the roster already:
@@ -177,8 +178,8 @@ public class DefaultRosterItemProvider implements RosterItemProvider {
         }
     }
 
-    /* (non-Javadoc)
-	 * @see org.jivesoftware.openfire.roster.RosterItemProvider#getUsernames(java.lang.String)
+    /**
+     * {@inheritDoc}
 	 */
 	public Iterator<String> getUsernames(String jid) {
         List<String> answer = new ArrayList<String>();
@@ -203,8 +204,8 @@ public class DefaultRosterItemProvider implements RosterItemProvider {
         return answer.iterator();
     }
 
-    /* (non-Javadoc)
-	 * @see org.jivesoftware.openfire.roster.RosterItemProvider#getItemCount(java.lang.String)
+    /**
+     * {@inheritDoc}
 	 */
 	public int getItemCount(String username) {
         int count = 0;
@@ -229,8 +230,8 @@ public class DefaultRosterItemProvider implements RosterItemProvider {
         return count;
     }
 
-    /* (non-Javadoc)
-	 * @see org.jivesoftware.openfire.roster.RosterItemProvider#getItems(java.lang.String)
+    /**
+     * {@inheritDoc}
 	 */
 	public Iterator<RosterItem> getItems(String username) {
         LinkedList<RosterItem> itemList = new LinkedList<RosterItem>();
@@ -298,7 +299,7 @@ public class DefaultRosterItemProvider implements RosterItemProvider {
      * @param con the database connection to use for the operation.
      * @throws SQLException if an SQL exception occurs.
      */
-    private void insertGroups(long rosterID, Iterator<String> iter, Connection con) throws SQLException
+    private static void insertGroups(long rosterID, Iterator<String> iter, Connection con) throws SQLException
     {
         PreparedStatement pstmt = null;
         try {

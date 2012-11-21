@@ -33,8 +33,8 @@ import org.dom4j.Element;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.event.UserEventDispatcher;
 import org.jivesoftware.openfire.event.UserEventListener;
-import org.jivesoftware.util.ClassUtils;
-import org.jivesoftware.util.JiveGlobals;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.StringUtils;
@@ -98,21 +98,21 @@ public class UserManager implements IQResultListener {
 
         // Detect when a new auth provider class is set
         PropertyEventListener propListener = new PropertyEventListener() {
-            public void propertySet(String property, Map params) {
+            public void propertySet(String property, Map<String, Object> params) {
                 if ("provider.user.className".equals(property)) {
                     initProvider();
                 }
             }
 
-            public void propertyDeleted(String property, Map params) {
+            public void propertyDeleted(String property, Map<String, Object> params) {
                 //Ignore
             }
 
-            public void xmlPropertySet(String property, Map params) {
+            public void xmlPropertySet(String property, Map<String, Object> params) {
                 //Ignore
             }
 
-            public void xmlPropertyDeleted(String property, Map params) {
+            public void xmlPropertyDeleted(String property, Map<String, Object> params) {
                 //Ignore
             }
         };
@@ -438,7 +438,7 @@ public class UserManager implements IQResultListener {
         if (IQ.Type.result == packet.getType()) {
             Element child = packet.getChildElement();
             if (child != null) {
-                for (Iterator it=child.elementIterator("identity"); it.hasNext();) {
+                for (Iterator<?> it=child.elementIterator("identity"); it.hasNext();) {
                     Element identity = (Element) it.next();
                     String accountType = identity.attributeValue("type");
                     if ("registered".equals(accountType) || "admin".equals(accountType)) {
@@ -462,21 +462,6 @@ public class UserManager implements IQResultListener {
     }
 
     private void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.user.className");
-
-        String className = JiveGlobals.getProperty("provider.user.className",
-                "org.jivesoftware.openfire.user.DefaultUserProvider");
-        // Check if we need to reset the provider class
-        if (provider == null || !className.equals(provider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                provider = (UserProvider) c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading user provider: " + className, e);
-                provider = new DefaultUserProvider();
-            }
-        }
+    	provider = ProviderFactory.getUserProvider();
     }
 }

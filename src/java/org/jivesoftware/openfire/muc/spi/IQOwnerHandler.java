@@ -35,6 +35,8 @@ import org.jivesoftware.openfire.muc.ConflictException;
 import org.jivesoftware.openfire.muc.ForbiddenException;
 import org.jivesoftware.openfire.muc.MUCRole;
 import org.jivesoftware.openfire.muc.cluster.RoomUpdatedEvent;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.LocaleUtils;
@@ -50,14 +52,14 @@ import org.xmpp.packet.PacketError;
 import org.xmpp.packet.Presence;
 
 /**
- * A handler for the IQ packet with namespace http://jabber.org/protocol/muc#owner. This kind of 
+ * A handler for the IQ packet with namespace http://jabber.org/protocol/muc#owner. This kind of
  * packets are usually sent by room owners. So this handler provides the necessary functionality
  * to support owner requirements such as: room configuration and room destruction.
  *
  * @author Gaston Dombiak
  */
 public class IQOwnerHandler {
-	
+
 	private static final Logger Log = LoggerFactory.getLogger(IQOwnerHandler.class);
 
     private final LocalMUCRoom room;
@@ -69,6 +71,11 @@ public class IQOwnerHandler {
     private Element probeResult;
 
     private final boolean skipInvite;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
 
     public IQOwnerHandler(LocalMUCRoom chatroom, PacketRouter packetRouter) {
         this.room = chatroom;
@@ -97,8 +104,7 @@ public class IQOwnerHandler {
      * @throws ForbiddenException if the user does not have enough permissions (ie. is not an owner).
      * @throws ConflictException If the room was going to lose all of its owners.
      */
-    @SuppressWarnings("unchecked")
-	public void handleIQ(IQ packet, MUCRole role) throws ForbiddenException, ConflictException, CannotBeInvitedException {
+    public void handleIQ(IQ packet, MUCRole role) throws ForbiddenException, ConflictException, CannotBeInvitedException {
         // Only owners can send packets with the namespace "http://jabber.org/protocol/muc#owner"
         if (MUCRole.Affiliation.owner != role.getAffiliation()) {
             throw new ForbiddenException();
@@ -330,7 +336,7 @@ public class IQOwnerHandler {
                 room.destroyRoom(null, null);
             }
             break;
-            
+
         case submit:
             // The owner is requesting an instant room
             if (completedForm.getFields().isEmpty()) {
@@ -350,7 +356,7 @@ public class IQOwnerHandler {
                 CacheFactory.doClusterTask(new RoomUpdatedEvent(room));
             }
             break;
-            
+
         default:
         	Log.warn("cannot handle data form element: " + formElement.asXML());
         	break;
@@ -453,7 +459,7 @@ public class IQOwnerHandler {
             boolean isPersistent = ("1".equals(booleanValue));
             // Delete the room from the DB if it's no longer persistent
             if (room.isPersistent() && !isPersistent) {
-                MUCPersistenceManager.deleteFromDB(room);
+            	provider.deleteFromDB(room);
             }
             room.setPersistent(isPersistent);
         }
@@ -666,7 +672,7 @@ public class IQOwnerHandler {
 
             // Remove the old element
             probeResult.remove(probeResult.element(QName.get("x", "jabber:x:data")));
-            // Add the new representation of configurationForm as an element 
+            // Add the new representation of configurationForm as an element
             probeResult.add(configurationForm.getElement());
 
         }
@@ -688,7 +694,7 @@ public class IQOwnerHandler {
         configurationForm.addField("FORM_TYPE", null, Type.hidden)
 				.addValue("http://jabber.org/protocol/muc#roomconfig");
 
-        configurationForm.addField("muc#roomconfig_roomname", 
+        configurationForm.addField("muc#roomconfig_roomname",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_roomname"),
 				Type.text_single);
 
@@ -699,7 +705,7 @@ public class IQOwnerHandler {
         configurationForm.addField("muc#roomconfig_changesubject",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_changesubject"),
         		Type.boolean_type);
-        
+
         final FormField maxUsers = configurationForm.addField(
         		"muc#roomconfig_maxusers",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_maxusers"),
@@ -719,7 +725,7 @@ public class IQOwnerHandler {
         broadcast.addOption(LocaleUtils.getLocalizedString("muc.form.conf.participant"), "participant");
         broadcast.addOption(LocaleUtils.getLocalizedString("muc.form.conf.visitor"), "visitor");
 
-        configurationForm.addField("muc#roomconfig_publicroom", 
+        configurationForm.addField("muc#roomconfig_publicroom",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_publicroom"),
         		Type.boolean_type);
 
@@ -752,7 +758,7 @@ public class IQOwnerHandler {
         configurationForm.addField("muc#roomconfig_roomsecret",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_roomsecret"),
         		Type.text_private);
-        
+
         final FormField whois = configurationForm.addField(
         		"muc#roomconfig_whois",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_whois"),

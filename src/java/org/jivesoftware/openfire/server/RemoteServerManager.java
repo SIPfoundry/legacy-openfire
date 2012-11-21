@@ -19,15 +19,12 @@
 
 package org.jivesoftware.openfire.server;
 
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Collection;
 
-import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.ConnectionManager;
 import org.jivesoftware.openfire.SessionManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.RemoteServerProvider;
 import org.jivesoftware.openfire.server.RemoteServerConfiguration.Permission;
 import org.jivesoftware.openfire.session.Session;
 import org.jivesoftware.util.JiveGlobals;
@@ -47,16 +44,12 @@ public class RemoteServerManager {
 
 	private static final Logger Log = LoggerFactory.getLogger(RemoteServerManager.class);
 
-    private static final String ADD_CONFIGURATION =
-        "INSERT INTO ofRemoteServerConf (xmppDomain,remotePort,permission) VALUES (?,?,?)";
-    private static final String DELETE_CONFIGURATION =
-        "DELETE FROM ofRemoteServerConf WHERE xmppDomain=?";
-    private static final String LOAD_CONFIGURATION =
-        "SELECT remotePort,permission FROM ofRemoteServerConf where xmppDomain=?";
-    private static final String LOAD_CONFIGURATIONS =
-        "SELECT xmppDomain,remotePort FROM ofRemoteServerConf where permission=?";
+    private static Cache<String, Object> configurationsCache;
 
-    private static Cache configurationsCache;
+    /**
+     * Provider for underlying storage
+     */
+    private static final RemoteServerProvider PROVIDER = ProviderFactory.getRemoteServerProvider();
 
     static {
         configurationsCache = CacheFactory.createCache("Remote Server Configurations");
@@ -140,7 +133,7 @@ public class RemoteServerManager {
      * @return the configuration of the registered external components.
      */
     public static Collection<RemoteServerConfiguration> getAllowedServers() {
-        return getConfigurations(Permission.allowed);
+        return PROVIDER.getConfigurations(Permission.allowed);
     }
 
     /**
@@ -150,7 +143,7 @@ public class RemoteServerManager {
      * @return the configuration of the blocked external components.
      */
     public static Collection<RemoteServerConfiguration> getBlockedServers() {
-        return getConfigurations(Permission.blocked);
+        return PROVIDER.getConfigurations(Permission.blocked);
     }
 
     /**
@@ -175,20 +168,7 @@ public class RemoteServerManager {
         // Remove configuration from cache
         configurationsCache.remove(domain);
         // Remove the permission for the entity from the database
-        java.sql.Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(DELETE_CONFIGURATION);
-            pstmt.setString(1, domain);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
+        PROVIDER.deleteConfiguration(domain);
     }
 
     /**
@@ -200,22 +180,7 @@ public class RemoteServerManager {
         // Remove configuration from cache
         configurationsCache.put(configuration.getDomain(), configuration);
         // Remove the permission for the entity from the database
-        java.sql.Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(ADD_CONFIGURATION);
-            pstmt.setString(1, configuration.getDomain());
-            pstmt.setInt(2, configuration.getRemotePort());
-            pstmt.setString(3, configuration.getPermission().toString());
-            pstmt.executeUpdate();
-        }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
+        PROVIDER.addConfiguration(configuration);
     }
 
     /**
@@ -226,68 +191,23 @@ public class RemoteServerManager {
      */
     public static RemoteServerConfiguration getConfiguration(String domain) {
         Object value = configurationsCache.get(domain);
+
         if ("null".equals(value)) {
             return null;
         }
+
         RemoteServerConfiguration configuration = (RemoteServerConfiguration) value;
+
         if (configuration == null) {
-            java.sql.Connection con = null;
-            PreparedStatement pstmt = null;
-            ResultSet rs = null;
-            try {
-                con = DbConnectionManager.getConnection();
-                pstmt = con.prepareStatement(LOAD_CONFIGURATION);
-                pstmt.setString(1, domain);
-                rs = pstmt.executeQuery();
-                while (rs.next()) {
-                    configuration = new RemoteServerConfiguration(domain);
-                    configuration.setRemotePort(rs.getInt(1));
-                    configuration.setPermission(Permission.valueOf(rs.getString(2)));
-                }
-            }
-            catch (SQLException sqle) {
-                Log.error(sqle.getMessage(), sqle);
-            }
-            finally {
-                DbConnectionManager.closeConnection(rs, pstmt, con);
-            }
+            configuration = PROVIDER.getConfiguration(domain);
             if (configuration != null) {
                 configurationsCache.put(domain, configuration);
-            }
-            else {
+            } else {
                 configurationsCache.put(domain, "null");
             }
         }
-        return configuration;
-    }
 
-    private static Collection<RemoteServerConfiguration> getConfigurations(
-            Permission permission) {
-        Collection<RemoteServerConfiguration> answer =
-                new ArrayList<RemoteServerConfiguration>();
-        java.sql.Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(LOAD_CONFIGURATIONS);
-            pstmt.setString(1, permission.toString());
-            rs = pstmt.executeQuery();
-            RemoteServerConfiguration configuration;
-            while (rs.next()) {
-                configuration = new RemoteServerConfiguration(rs.getString(1));
-                configuration.setRemotePort(rs.getInt(2));
-                configuration.setPermission(permission);
-                answer.add(configuration);
-            }
-        }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);
-        }
-        return answer;
+        return configuration;
     }
 
     /**

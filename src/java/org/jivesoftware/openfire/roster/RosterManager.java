@@ -20,6 +20,13 @@
 
 package org.jivesoftware.openfire.roster;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.StringTokenizer;
+
 import org.jivesoftware.openfire.RoutingTable;
 import org.jivesoftware.openfire.SharedGroupException;
 import org.jivesoftware.openfire.XMPPServer;
@@ -31,21 +38,16 @@ import org.jivesoftware.openfire.event.UserEventListener;
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.RosterItemProvider;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
-import org.jivesoftware.util.ClassUtils;
 import org.jivesoftware.util.JiveGlobals;
-import org.jivesoftware.util.PropertyEventDispatcher;
-import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.cache.Cache;
 import org.jivesoftware.util.cache.CacheFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Presence;
-
-import java.util.*;
 
 /**
  * A simple service that allows components to retrieve a roster based solely on the ID
@@ -60,12 +62,9 @@ import java.util.*;
  */
 public class RosterManager extends BasicModule implements GroupEventListener, UserEventListener {
 
-    private static final Logger Log = LoggerFactory.getLogger(RosterManager.class);
-
     private Cache<String, Roster> rosterCache = null;
     private XMPPServer server;
     private RoutingTable routingTable;
-    private RosterItemProvider provider;
 
     /**
      * Returns true if the roster service is enabled. When disabled it is not possible to
@@ -80,20 +79,6 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
     public RosterManager() {
         super("Roster Manager");
         rosterCache = CacheFactory.createCache("Roster");
-
-        initProvider();
-
-        PropertyEventDispatcher.addListener(new PropertyEventListener() {
-            public void propertySet(String property, Map params) {
-                if (property.equals("provider.roster.className")) {
-                    initProvider();
-                }
-            }
-            public void propertyDeleted(String property, Map params) {}
-            public void xmlPropertySet(String property, Map params) {}
-            public void xmlPropertyDeleted(String property, Map params) {}
-        });
-
     }
 
     /**
@@ -149,7 +134,8 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
             rosterCache.remove(username);
 
             // Get the rosters that have a reference to the deleted user
-            Iterator<String> usernames = provider.getUsernames(user.toBareJID());
+            RosterItemProvider rosteItemProvider = ProviderFactory.getRosterProvider();
+            Iterator<String> usernames = rosteItemProvider.getUsernames(user.toBareJID());
             while (usernames.hasNext()) {
                 username = usernames.next();
                 try {
@@ -230,7 +216,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
      * @return a collection of Groups obtained by parsing a comma delimited String with the name
      *         of groups.
      */
-    private Collection<Group> parseGroups(String groupNames) {
+    private static Collection<Group> parseGroups(String groupNames) {
         Collection<Group> answer = new HashSet<Group>();
         for (String groupName : parseGroupNames(groupNames)) {
             try {
@@ -743,7 +729,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         routingTable.routePacket(recipient, presence, false);
     }
 
-    private Collection<Group> getVisibleGroups(Group groupToCheck) {
+    private static Collection<Group> getVisibleGroups(Group groupToCheck) {
     	return GroupManager.getInstance().getVisibleGroups(groupToCheck);
     }
 
@@ -876,7 +862,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
      * @return true if a group in the first collection may mutually see a group of the
      *         second collection.
      */
-    boolean hasMutualVisibility(String user, Collection<Group> groups, JID otherUser,
+    public boolean hasMutualVisibility(String user, Collection<Group> groups, JID otherUser,
             Collection<Group> otherGroups) {
         for (Group group : groups) {
             for (Group otherGroup : otherGroups) {
@@ -956,27 +942,4 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         // Remove this module as a listener of group events
         GroupEventDispatcher.removeListener(this);
     }
-
-    public static RosterItemProvider getRosterItemProvider() {
-        return XMPPServer.getInstance().getRosterManager().provider;
-    }
-
-    private void initProvider() {
-        JiveGlobals.migrateProperty("provider.roster.className");
-        String className = JiveGlobals.getProperty("provider.roster.className",
-                "org.jivesoftware.openfire.roster.DefaultRosterItemProvider");
-
-        if (provider == null || !className.equals(provider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                provider = (RosterItemProvider) c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading roster provider: " + className, e);
-                provider = new DefaultRosterItemProvider();
-            }
-        }
-
-    }
-
 }

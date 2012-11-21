@@ -16,12 +16,14 @@
 
 package org.jivesoftware.openfire.privacy;
 
-import org.dom4j.Element;
-import org.jivesoftware.util.cache.Cache;
-import org.jivesoftware.util.cache.CacheFactory;
-
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import org.dom4j.Element;
+import org.jivesoftware.openfire.provider.PrivacyListProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.util.cache.Cache;
+import org.jivesoftware.util.cache.CacheFactory;
 
 /**
  * A Privacy list manager creates, gets, updates and removes privacy lists. Loaded lists
@@ -34,7 +36,7 @@ public class PrivacyListManager {
     private static final PrivacyListManager instance = new PrivacyListManager();
     private static Cache<String, PrivacyList> listsCache;
 
-    private PrivacyListProvider provider = new PrivacyListProvider();
+    private PrivacyListProvider provider = ProviderFactory.getPrivacyListProvider();
 
     private List<PrivacyListEventListener> listeners = new CopyOnWriteArrayList<PrivacyListEventListener>();
 

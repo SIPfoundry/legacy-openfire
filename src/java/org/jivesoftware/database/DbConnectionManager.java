@@ -96,8 +96,8 @@ public class DbConnectionManager {
                     if (className != null) {
                         // Attempt to load the class.
                         try {
-                            Class conClass = ClassUtils.forName(className);
-                            setConnectionProvider((ConnectionProvider)conClass.newInstance());
+                            Class<ConnectionProvider> conClass = ClassUtils.forName(className);
+                            setConnectionProvider(conClass.newInstance());
                         }
                         catch (Exception e) {
                             Log.warn("Failed to create the " +
@@ -124,14 +124,14 @@ public class DbConnectionManager {
             	con = connectionProvider.getConnection();
                 if (con != null) {
                     // Got one, lets hand it off.
-                    // Usually profiling is not enabled. So we return a normal 
+                    // Usually profiling is not enabled. So we return a normal
                     // connection unless profiling is enabled. If yes, wrap the
                     // connection with a profiled connection.
                     if (!profilingEnabled) {
                         return con;
                     }
                     else {
-                        return new ProfiledConnection(con); 
+                        return new ProfiledConnection(con);
                     }
                 }
             } catch (SQLException e) {
@@ -206,7 +206,7 @@ public class DbConnectionManager {
             }
             // Reset the connection to auto-commit mode.
             try {
-                con.setAutoCommit(true);              
+                con.setAutoCommit(true);
             }
             catch (Exception e) {
                 Log.error(e.getMessage(), e);
@@ -275,13 +275,13 @@ public class DbConnectionManager {
         if (stmt != null) {
             try {
                 stmt.close();
-            }       
+            }
             catch (Exception e) {
                 Log.error(e.getMessage(), e);
             }
         }
     }
-    
+
     /**
      * Closes a statement and a result set. This method should be called within the finally section of
      * your database logic, as in the following example:
@@ -336,7 +336,7 @@ public class DbConnectionManager {
     {
         pstmt.close();
     }
-        
+
     /**
      * Closes a statement and a result set. This method should be called within the try section of
      * your database logic when you reuse a statement. It may throw an exception,
@@ -540,7 +540,7 @@ public class DbConnectionManager {
     /**
      * Limits the number of the results in a result set (to startIndex + numResults).
      * Sets the fetch size depending on the features of the JDBC driver and make
-     * sure that the size is not bigger than 500. 
+     * sure that the size is not bigger than 500.
      * @param pstmt the PreparedStatement
      * @param startIndex the first row with interesting data
      * @param numResults the number of interesting results
@@ -555,11 +555,11 @@ public class DbConnectionManager {
                 setFetchSize(pstmt, Math.min(MAX_FETCHRESULTS, numResults));
             }
             else {
-                setFetchSize(pstmt, Math.min(MAX_FETCHRESULTS, maxRows));            
+                setFetchSize(pstmt, Math.min(MAX_FETCHRESULTS, maxRows));
             }
         }
     }
-    
+
     /**
      * Sets the number of rows that the JDBC driver should buffer at a time.
      * The operation is automatically bypassed if Openfire knows that the
@@ -931,7 +931,7 @@ public class DbConnectionManager {
     public static boolean isFetchSizeSupported() {
         return fetchSizeSupported;
     }
-    
+
     public static boolean isPstmtFetchSizeSupported() {
         return pstmt_fetchSizeSupported;
     }
@@ -966,6 +966,29 @@ public class DbConnectionManager {
             return "select 1";
         }
     }
+
+	public static boolean isSetupMode() {
+		// Check if the DB configuration is done
+        if (getConnectionProvider() == null) {
+            // DB setup is still not completed so setup is needed
+            return true;
+        }
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        try {
+            con = getConnection();
+            // Properties can now be loaded from DB so consider setup done
+        }
+        catch (SQLException e) {
+            // Properties cannot be loaded from DB so do not consider setup done
+            return true;
+        }
+        finally {
+            closeConnection(pstmt, con);
+        }
+
+        return false;
+	}
 
     /**
      * A class that identifies the type of the database that Jive is connected

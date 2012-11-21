@@ -34,6 +34,7 @@ import java.util.Set;
 
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.event.GroupEventDispatcher;
+import org.jivesoftware.openfire.provider.GroupProvider;
 import org.jivesoftware.util.cache.CacheSizes;
 import org.jivesoftware.util.cache.Cacheable;
 import org.jivesoftware.util.cache.CannotCalculateSizeException;
@@ -75,7 +76,7 @@ public class Group implements Cacheable, Externalizable {
     /**
      * Constructs a new group. Note: this constructor is intended for implementors of the
      * {@link GroupProvider} interface. To create a new group, use the
-     * {@link GroupManager#createGroup(String)} method. 
+     * {@link GroupManager#createGroup(String)} method.
      *
      * @param name the name.
      * @param description the description.
@@ -258,7 +259,7 @@ public class Group implements Cacheable, Externalizable {
      * @return true if the specified user is a group user.
      */
     public boolean isUser(JID user) {
-        // Make sure that we are always checking bare JIDs 
+        // Make sure that we are always checking bare JIDs
         if (user != null && user.getResource() != null) {
             user = user.asBareJID();
         }
@@ -275,9 +276,7 @@ public class Group implements Cacheable, Externalizable {
         if  (username != null) {
             return isUser(XMPPServer.getInstance().createJID(username, null, true));
         }
-        else {
-            return false;
-        }
+        return false;
     }
 
     public int getCachedSize() 
@@ -313,15 +312,13 @@ public class Group implements Cacheable, Externalizable {
         if (object != null && object instanceof Group) {
             return name.equals(((Group)object).getName());
         }
-        else {
-            return false;
-        }
+        return false;
     }
     /**
      * Collection implementation that notifies the GroupProvider of any
      * changes to the collection.
      */
-    private class MemberCollection extends AbstractCollection {
+    private class MemberCollection extends AbstractCollection<JID> {
 
         private Collection<JID> users;
         private boolean adminCollection;
@@ -383,12 +380,12 @@ public class Group implements Cacheable, Externalizable {
         }
 
         @Override
-		public boolean add(Object member) {
+		public boolean add(JID member) {
             // Do nothing if the provider is read-only.
             if (provider.isReadOnly()) {
                 return false;
             }
-            JID user = (JID) member;
+            JID user = member;
             // Find out if the user was already a group user.
             boolean alreadyGroupUser;
             if (adminCollection) {

@@ -54,7 +54,7 @@ public abstract class SubscriptionTask extends NodeTask
 	{
 		if (subscription == null)
 		{
-			subscription = new NodeSubscription(getNode(), owner, subJid, state, subId);
+			subscription = new NodeSubscription(getNode().getService(), getNode(), owner, subJid, state, subId);
 		}
 		return subscription;
 	}

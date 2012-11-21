@@ -42,6 +42,8 @@ import org.jivesoftware.openfire.disco.DiscoItem;
 import org.jivesoftware.openfire.disco.DiscoItemsProvider;
 import org.jivesoftware.openfire.disco.DiscoServerItem;
 import org.jivesoftware.openfire.disco.ServerItemsProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
 import org.jivesoftware.util.JiveGlobals;
@@ -84,7 +86,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
      * Nodes managed by this manager, table: key nodeID (String); value Node
      */
     private Map<String, Node> nodes = new ConcurrentHashMap<String, Node>();
-    
+
     /**
      * Keep a registry of the presence's show value of users that subscribed to a node of
      * the pubsub service and for which the node only delivers notifications for online users
@@ -94,12 +96,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
      */
     private Map<String, Map<String, String>> barePresences =
             new ConcurrentHashMap<String, Map<String, String>>();
-    
+
     /**
      * Manager that keeps the list of ad-hoc commands and processing command requests.
      */
     private AdHocCommandManager manager;
-    
+
     /**
      * Returns the permission policy for creating nodes. A true value means that not anyone can
      * create a node, only the JIDs listed in <code>allowedToCreate</code> are allowed to create
@@ -154,7 +156,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
 
     public PubSubModule() {
         super("Publish Subscribe Service");
-        
+
         // Initialize the ad-hoc commands manager to use for this pubsub service
         manager = new AdHocCommandManager();
         manager.addCommand(new PendingSubscriptionsCommand(this));
@@ -336,6 +338,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
 	public void initialize(XMPPServer server) {
         super.initialize(server);
 
+        final PubSubProvider provider = ProviderFactory.getPubsubProvider();
         // Listen to property events so that the template is always up to date
         PropertyEventDispatcher.addListener(this);
 
@@ -371,7 +374,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         engine = new PubSubEngine(router);
 
         // Load default configuration for leaf nodes
-        leafDefaultConfiguration = PubSubPersistenceManager.loadDefaultConfiguration(this, true);
+        leafDefaultConfiguration = provider.loadDefaultConfiguration(this, true);
         if (leafDefaultConfiguration == null) {
             // Create and save default configuration for leaf nodes;
             leafDefaultConfiguration = new DefaultNodeConfiguration(true);
@@ -389,11 +392,11 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             leafDefaultConfiguration.setSendItemSubscribe(true);
             leafDefaultConfiguration.setSubscriptionEnabled(true);
             leafDefaultConfiguration.setReplyPolicy(null);
-            PubSubPersistenceManager.createDefaultConfiguration(this, leafDefaultConfiguration);
+            provider.createDefaultConfiguration(this, leafDefaultConfiguration);
         }
         // Load default configuration for collection nodes
         collectionDefaultConfiguration =
-                PubSubPersistenceManager.loadDefaultConfiguration(this, false);
+                provider.loadDefaultConfiguration(this, false);
         if (collectionDefaultConfiguration == null ) {
             // Create and save default configuration for collection nodes;
             collectionDefaultConfiguration = new DefaultNodeConfiguration(false);
@@ -410,12 +413,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             collectionDefaultConfiguration
                     .setAssociationPolicy(CollectionNode.LeafNodeAssociationPolicy.all);
             collectionDefaultConfiguration.setMaxLeafNodes(-1);
-            PubSubPersistenceManager
+            provider
                     .createDefaultConfiguration(this, collectionDefaultConfiguration);
         }
 
         // Load nodes to memory
-        PubSubPersistenceManager.loadNodes(this);
+        provider.loadNodes(this);
         // Ensure that we have a root collection node
         String rootNodeID = JiveGlobals.getProperty("xmpp.pubsub.root.nodeID", "");
         if (nodes.isEmpty()) {
@@ -736,7 +739,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         nodes.remove(nodeID);
     }
 
-    private boolean canDiscoverNode(Node pubNode) {
+    private static boolean canDiscoverNode(Node pubNode) {
         return true;
     }
 

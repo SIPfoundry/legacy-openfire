@@ -35,14 +35,14 @@ import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.commands.AdHocCommandManager;
 import org.jivesoftware.openfire.entitycaps.EntityCapabilities;
 import org.jivesoftware.openfire.entitycaps.EntityCapabilitiesManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.CollectionNode;
 import org.jivesoftware.openfire.pubsub.DefaultNodeConfiguration;
-import org.jivesoftware.openfire.pubsub.LeafNode;
 import org.jivesoftware.openfire.pubsub.Node;
 import org.jivesoftware.openfire.pubsub.NodeSubscription;
 import org.jivesoftware.openfire.pubsub.PendingSubscriptionsCommand;
 import org.jivesoftware.openfire.pubsub.PubSubEngine;
-import org.jivesoftware.openfire.pubsub.PubSubPersistenceManager;
 import org.jivesoftware.openfire.pubsub.PubSubService;
 import org.jivesoftware.openfire.pubsub.PublishedItem;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
@@ -63,11 +63,11 @@ import org.xmpp.packet.PacketExtension;
 /**
  * A PEPService is a {@link PubSubService} for use with XEP-0163: "Personal Eventing via
  * Pubsub" Version 1.0
- * 
- * Note: Although this class implements {@link Cacheable}, instances should only be 
+ *
+ * Note: Although this class implements {@link Cacheable}, instances should only be
  * cached in caches that have time-based (as opposed to size-based) eviction policies.
- * 
- * @author Armando Jagucki 
+ *
+ * @author Armando Jagucki
  */
 public class PEPService implements PubSubService, Cacheable {
 
@@ -129,8 +129,13 @@ public class PEPService implements PubSubService, Cacheable {
     private EntityCapabilitiesManager entityCapsManager = EntityCapabilitiesManager.getInstance();
 
     /**
+     * Provider for underlying storage
+     */
+    private final PubSubProvider provider = ProviderFactory.getPubsubProvider();
+
+    /**
      * Constructs a PEPService.
-     * 
+     *
      * @param server  the XMPP server.
      * @param bareJID the bare JID (service ID) of the user owning the service.
      */
@@ -143,7 +148,7 @@ public class PEPService implements PubSubService, Cacheable {
         adHocCommandManager.addCommand(new PendingSubscriptionsCommand(this));
 
         // Load default configuration for leaf nodes
-        leafDefaultConfiguration = PubSubPersistenceManager.loadDefaultConfiguration(this, true);
+        leafDefaultConfiguration = provider.loadDefaultConfiguration(this, true);
         if (leafDefaultConfiguration == null) {
             // Create and save default configuration for leaf nodes;
             leafDefaultConfiguration = new DefaultNodeConfiguration(true);
@@ -161,10 +166,10 @@ public class PEPService implements PubSubService, Cacheable {
             leafDefaultConfiguration.setSendItemSubscribe(true);
             leafDefaultConfiguration.setSubscriptionEnabled(true);
             leafDefaultConfiguration.setReplyPolicy(null);
-            PubSubPersistenceManager.createDefaultConfiguration(this, leafDefaultConfiguration);
+            provider.createDefaultConfiguration(this, leafDefaultConfiguration);
         }
         // Load default configuration for collection nodes
-        collectionDefaultConfiguration = PubSubPersistenceManager.loadDefaultConfiguration(this, false);
+        collectionDefaultConfiguration = provider.loadDefaultConfiguration(this, false);
         if (collectionDefaultConfiguration == null) {
             // Create and save default configuration for collection nodes;
             collectionDefaultConfiguration = new DefaultNodeConfiguration(false);
@@ -180,11 +185,11 @@ public class PEPService implements PubSubService, Cacheable {
             collectionDefaultConfiguration.setReplyPolicy(null);
             collectionDefaultConfiguration.setAssociationPolicy(CollectionNode.LeafNodeAssociationPolicy.all);
             collectionDefaultConfiguration.setMaxLeafNodes(-1);
-            PubSubPersistenceManager.createDefaultConfiguration(this, collectionDefaultConfiguration);
+            provider.createDefaultConfiguration(this, collectionDefaultConfiguration);
         }
 
         // Load nodes to memory
-        PubSubPersistenceManager.loadNodes(this);
+        provider.loadNodes(this);
         // Ensure that we have a root collection node
         if (nodes.isEmpty()) {
             // Create root collection node
@@ -258,7 +263,7 @@ public class PEPService implements PubSubService, Cacheable {
      * @throws UserNotFoundException If the probee does not exist in the local server or the prober
      *         is not present in the roster of the probee.
      */
-    private boolean canProbePresence(JID prober, JID probee) throws UserNotFoundException {
+    private static boolean canProbePresence(JID prober, JID probee) throws UserNotFoundException {
         Roster roster;
         roster = XMPPServer.getInstance().getRosterManager().getRoster(prober.getNode());
         RosterItem item = roster.getRosterItem(probee);
@@ -288,9 +293,7 @@ public class PEPService implements PubSubService, Cacheable {
         if (serviceOwnerJID.equals(user.toBareJID())) {
             return true;
         }
-        else {
-            return false;
-        }
+        return false;
     }
 
     public boolean isNodeCreationRestricted() {
@@ -481,7 +484,7 @@ public class PEPService implements PubSubService, Cacheable {
             Element items = event.addElement("items");
             items.addAttribute("node", leafLastPublishedItem.getNodeID());
             Element item = items.addElement("item");
-            if (((LeafNode) leafLastPublishedItem.getNode()).isItemRequired()) {
+            if (leafLastPublishedItem.getNode().isItemRequired()) {
                 item.addAttribute("id", leafLastPublishedItem.getID());
             }
             if (leafLastPublishedItem.getNode().isPayloadDelivered() && leafLastPublishedItem.getPayload() != null) {

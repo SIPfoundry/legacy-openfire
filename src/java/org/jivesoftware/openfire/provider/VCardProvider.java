@@ -18,7 +18,7 @@
  * limitations under the License.
  */
 
-package org.jivesoftware.openfire.vcard;
+package org.jivesoftware.openfire.provider;
 
 import org.dom4j.Element;
 import org.jivesoftware.util.AlreadyExistsException;

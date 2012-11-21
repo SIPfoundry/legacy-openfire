@@ -31,6 +31,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.provider.VCardProvider;
 import org.jivesoftware.util.AlreadyExistsException;
 import org.jivesoftware.util.NotFoundException;
 import org.slf4j.Logger;

@@ -18,11 +18,22 @@
  */
 package org.jivesoftware.openfire.muc.spi;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 import org.dom4j.QName;
 import org.jivesoftware.openfire.muc.MUCRoom;
 import org.jivesoftware.openfire.muc.MultiUserChatService;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.xmpp.forms.DataForm;
 import org.xmpp.forms.FormField;
 import org.xmpp.packet.IQ;
@@ -31,12 +42,10 @@ import org.xmpp.packet.PacketError.Condition;
 import org.xmpp.resultsetmanagement.ResultSet;
 import org.xmpp.resultsetmanagement.ResultSetImpl;
 
-import java.util.*;
-
 /**
  * This class adds jabber:iq:search combined with 'result set management'
  * functionality to the MUC service of Openfire.
- * 
+ *
  * @author Guus der Kinderen - Nimbuzz B.V. <guus@nimbuzz.com>
  * @author Giancarlo Frison - Nimbuzz B.V. <giancarlo@nimbuzz.com>
  */
@@ -49,7 +58,7 @@ public class IQMUCSearchHandler
 
 	/**
 	 * Creates a new instance of the search provider.
-	 * 
+	 *
 	 * @param mucService
 	 *            The server for which to return search results.
 	 */
@@ -61,7 +70,7 @@ public class IQMUCSearchHandler
 	/**
 	 * Utility method that returns a 'jabber:iq:search' child element filled
 	 * with a blank dataform.
-	 * 
+	 *
 	 * @return Element, named 'query', escaped by the 'jabber:iq:search'
 	 *         namespace, filled with a blank dataform.
 	 */
@@ -121,7 +130,7 @@ public class IQMUCSearchHandler
 	/**
 	 * Constructs an answer on a IQ stanza that contains a search request. The
 	 * answer will be an IQ stanza of type 'result' or 'error'.
-	 * 
+	 *
 	 * @param iq
 	 *            The IQ stanza that is the search request.
 	 * @return An answer to the provided request.
@@ -146,7 +155,7 @@ public class IQMUCSearchHandler
 		boolean includePasswordProtectedRooms = true;
 
 		final Set<String> names = new HashSet<String>();
-		for (final FormField field : df.getFields()) 
+		for (final FormField field : df.getFields())
 		{
 			if (field.getVariable().equals("name"))
 			{
@@ -350,7 +359,7 @@ public class IQMUCSearchHandler
 	/**
 	 * Sorts the provided list in such a way that the MUC with the most users
 	 * will be the first one in the list.
-	 * 
+	 *
 	 * @param mucs
 	 *            The unordered list that will be sorted.
      * @return The sorted list of MUC rooms.
@@ -372,7 +381,7 @@ public class IQMUCSearchHandler
 	 * Checks if the room may be included in search results. This is almost
 	 * identical to {@link MultiUserChatServiceImpl#canDiscoverRoom(MUCRoom room)},
 	 * but that method is private and cannot be re-used here.
-	 * 
+	 *
 	 * @param room
 	 *            The room to check
 	 * @return ''true'' if the room may be included in search results, ''false''
@@ -381,7 +390,8 @@ public class IQMUCSearchHandler
 	private static boolean canBeIncludedInResult(MUCRoom room)
 	{
 		// Check if locked rooms may be discovered
-		final boolean discoverLocked = MUCPersistenceManager.getBooleanProperty(room.getMUCService().getServiceName(), "discover.locked", true);
+		MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
+		final boolean discoverLocked = provider.getBooleanProperty(room.getMUCService().getServiceName(), "discover.locked", true);
 
 		if (!discoverLocked && room.isLocked())
 		{
@@ -393,7 +403,7 @@ public class IQMUCSearchHandler
 	/**
 	 * Returns the first value from the FormField, or 'null' if no value has
 	 * been set.
-	 * 
+	 *
 	 * @param formField
 	 *            The field from which to return the first value.
 	 * @return String based value, or 'null' if the FormField has no values.

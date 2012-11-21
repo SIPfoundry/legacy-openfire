@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.provider.PrivacyListProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,9 +44,9 @@ import org.slf4j.LoggerFactory;
  *
  * @author Gaston Dombiak
  */
-public class PrivacyListProvider {
+public class DefaultPrivacyListProvider implements PrivacyListProvider {
 
-	private static final Logger Log = LoggerFactory.getLogger(PrivacyListProvider.class);
+	private static final Logger Log = LoggerFactory.getLogger(DefaultPrivacyListProvider.class);
 
     private static final String PRIVACY_LIST_COUNT =
             "SELECT count(*) from ofPrivacyList";
@@ -75,7 +76,7 @@ public class PrivacyListProvider {
      */
     private AtomicInteger privacyListCount;
 
-    public PrivacyListProvider() {
+    public DefaultPrivacyListProvider() {
         super();
         // Initialize the pool of sax readers
         for (int i=0; i<POOL_SIZE; i++) {
@@ -94,11 +95,7 @@ public class PrivacyListProvider {
     }
 
     /**
-     * Returns the names of the existing privacy lists indicating which one is the
-     * default privacy list associated to a user.
-     *
-     * @param username the username of the user to get his privacy lists names.
-     * @return the names of the existing privacy lists with a default flag.
+     * {@inheritDoc}
      */
     public Map<String, Boolean> getPrivacyLists(String username) {
         // If there are no privacy lists stored, this method is a no-op.
@@ -129,13 +126,7 @@ public class PrivacyListProvider {
     }
 
     /**
-     * Loads the requested privacy list from the database. Returns <tt>null</tt> if a list
-     * with the specified name does not exist.
-     *
-     * @param username the username of the user to get his privacy list.
-     * @param listName name of the list to load.
-     * @return the privacy list with the specified name or <tt>null</tt> if a list
-     *         with the specified name does not exist.
+     * {@inheritDoc}
      */
     public PrivacyList loadPrivacyList(String username, String listName) {
         // If there are no privacy lists stored, this method is a no-op.
@@ -195,11 +186,7 @@ public class PrivacyListProvider {
     }
 
     /**
-     * Loads the default privacy list of a given user from the database. Returns <tt>null</tt>
-     * if no list was found.
-     *
-     * @param username the username of the user to get his default privacy list.
-     * @return the default privacy list or <tt>null</tt> if no list was found.
+     * {@inheritDoc}
      */
     public PrivacyList loadDefaultPrivacyList(String username) {
         // If there are no privacy lists stored, this method is a no-op.
@@ -256,10 +243,7 @@ public class PrivacyListProvider {
     }
 
     /**
-     * Creates and saves the new privacy list to the database.
-     *
-     * @param username the username of the user that created a new privacy list.
-     * @param list the PrivacyList to save.
+     * {@inheritDoc}
      */
     public void createPrivacyList(String username, PrivacyList list) {
         Connection con = null;
@@ -286,10 +270,7 @@ public class PrivacyListProvider {
     }
 
     /**
-     * Updated the existing privacy list in the database.
-     *
-     * @param username the username of the user that updated a privacy list.
-     * @param list the PrivacyList to update in the database.
+     * {@inheritDoc}
      */
     public void updatePrivacyList(String username, PrivacyList list) {
         Connection con = null;
@@ -313,10 +294,7 @@ public class PrivacyListProvider {
     }
 
     /**
-     * Deletes an existing privacy list from the database.
-     *
-     * @param username the username of the user that deleted a privacy list.
-     * @param listName the name of the PrivacyList to delete.
+     * {@inheritDoc}
      */
     public void deletePrivacyList(String username, String listName) {
         // If there are no privacy lists stored, this method is a no-op.
@@ -344,9 +322,7 @@ public class PrivacyListProvider {
     }
 
     /**
-     * Deletes all existing privacy list from the database for the given user.
-     *
-     * @param username the username of the user whose privacy lists are going to be deleted.
+     * {@inheritDoc}
      */
     public void deletePrivacyLists(String username) {
         // If there are no privacy lists stored, this method is a no-op.

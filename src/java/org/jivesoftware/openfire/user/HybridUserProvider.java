@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Vector;
 
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.util.ClassUtils;
 import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;

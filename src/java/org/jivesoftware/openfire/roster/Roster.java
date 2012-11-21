@@ -44,6 +44,8 @@ import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.RosterItemProvider;
 import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNameManager;
@@ -96,7 +98,6 @@ public class Roster implements Cacheable, Externalizable {
      */
     private RosterManager rosterManager;
 
-
     /**
      * Constructor added for Externalizable. Do not use this constructor.
      */
@@ -129,8 +130,8 @@ public class Roster implements Cacheable, Externalizable {
         //Collection<Group> userGroups = GroupManager.getInstance().getGroups(getUserJID());
 
         // Add RosterItems that belong to the personal roster
-        rosterItemProvider = RosterManager.getRosterItemProvider();
-        Iterator<RosterItem> items = rosterItemProvider.getItems(username);
+        RosterItemProvider provider = ProviderFactory.getRosterProvider();
+        Iterator<RosterItem> items = provider.getItems(username);
         while (items.hasNext()) {
             RosterItem item = items.next();
             // Check if the item (i.e. contact) belongs to a shared group of the user. Add the
@@ -487,23 +488,22 @@ public class Roster implements Cacheable, Externalizable {
             }
 
             return item;
-        } else {
-            // Verify if the item being removed is an implicit roster item
-            // that only exists due to some shared group
-            RosterItem item = getImplicitRosterItem(user);
-            if (item != null) {
-                implicitFrom.remove(user.toBareJID());
-                // If the contact being removed is not a local user then ACK unsubscription
-                if (!server.isLocal(user)) {
-                    Presence presence = new Presence();
-                    presence.setFrom(server.createJID(username, null));
-                    presence.setTo(user);
-                    presence.setType(Presence.Type.unsubscribed);
-                    server.getPacketRouter().route(presence);
-                }
-                // Fire event indicating that a roster item has been deleted
-                RosterEventDispatcher.contactDeleted(this, item);
+        }
+        // Verify if the item being removed is an implicit roster item
+        // that only exists due to some shared group
+        RosterItem item = getImplicitRosterItem(user);
+        if (item != null) {
+            implicitFrom.remove(user.toBareJID());
+            // If the contact being removed is not a local user then ACK unsubscription
+            if (!server.isLocal(user)) {
+                Presence presence = new Presence();
+                presence.setFrom(server.createJID(username, null));
+                presence.setTo(user);
+                presence.setType(Presence.Type.unsubscribed);
+                server.getPacketRouter().route(presence);
             }
+            // Fire event indicating that a roster item has been deleted
+            RosterEventDispatcher.contactDeleted(this, item);
         }
 
         return null;
@@ -560,7 +560,7 @@ public class Roster implements Cacheable, Externalizable {
         return roster;
     }
 
-    private org.xmpp.packet.Roster.Ask getAskStatus(RosterItem.AskType askType) {
+    private static org.xmpp.packet.Roster.Ask getAskStatus(RosterItem.AskType askType) {
         if (askType == null || "".equals(askType.getName())) {
             return null;
         }
@@ -1122,7 +1122,6 @@ public class Roster implements Cacheable, Externalizable {
         presenceManager = XMPPServer.getInstance().getPresenceManager();
         rosterManager = XMPPServer.getInstance().getRosterManager();
         sessionManager = SessionManager.getInstance();
-        rosterItemProvider = RosterManager.getRosterItemProvider();
         routingTable = XMPPServer.getInstance().getRoutingTable();
 
         username = ExternalizableUtil.getInstance().readSafeUTF(in);
