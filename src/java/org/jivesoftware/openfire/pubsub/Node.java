@@ -20,7 +20,18 @@
 
 package org.jivesoftware.openfire.pubsub;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 import org.dom4j.Element;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
 import org.jivesoftware.util.LocaleUtils;
@@ -30,10 +41,6 @@ import org.xmpp.forms.FormField;
 import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A virtual location to which information can be published and from which event
@@ -177,6 +184,11 @@ public abstract class Node {
      */
     protected Map<String, NodeSubscription> subscriptionsByJID =
             new ConcurrentHashMap<String, NodeSubscription>();
+
+    /**
+     * Provider for underlying storage
+     */
+    protected final PubSubProvider provider = ProviderFactory.getPubsubProvider();
 
     Node(PubSubService service, CollectionNode parent, String nodeID, JID creator) {
         this.service = service;
@@ -348,7 +360,7 @@ public abstract class Node {
 
         if (savedToDB) {
             // Add or update the affiliate in the database
-            PubSubPersistenceManager.saveAffiliation(service, this, affiliate, created);
+            provider.saveAffiliation(service, this, affiliate, created);
         }
         return affiliate;
     }
@@ -367,7 +379,7 @@ public abstract class Node {
         affiliates.remove(affiliate);
         if (savedToDB) {
             // Remove the affiliate from the database
-            PubSubPersistenceManager.removeAffiliation(service, this, affiliate);
+            provider.removeAffiliation(service, this, affiliate);
         }
     }
 
@@ -1698,16 +1710,16 @@ public abstract class Node {
     public void saveToDB() {
         // Make the room persistent
         if (!savedToDB) {
-            PubSubPersistenceManager.createNode(service, this);
+            provider.createNode(service, this);
             // Set that the node is now in the DB
             setSavedToDB(true);
             // Save the existing node affiliates to the DB
             for (NodeAffiliate affialiate : affiliates) {
-                PubSubPersistenceManager.saveAffiliation(service, this, affialiate, true);
+                provider.saveAffiliation(service, this, affialiate, true);
             }
             // Add new subscriptions to the database
             for (NodeSubscription subscription : subscriptionsByID.values()) {
-                PubSubPersistenceManager.saveSubscription(service, this, subscription, true);
+                provider.saveSubscription(service, this, subscription, true);
             }
             // Add the new node to the list of available nodes
             service.addNode(this);
@@ -1717,7 +1729,7 @@ public abstract class Node {
             }
         }
         else {
-            PubSubPersistenceManager.updateNode(service, this);
+            provider.updateNode(service, this);
         }
     }
 
@@ -1776,7 +1788,7 @@ public abstract class Node {
      */
     public boolean delete() {
         // Delete node from the database
-        if (PubSubPersistenceManager.removeNode(service, this)) {
+        if (provider.removeNode(service, this)) {
             // Remove this node from the parent node (if any)
             if (parent != null) {
                 parent.removeChildNode(this);
@@ -1837,7 +1849,7 @@ public abstract class Node {
             parent.addChildNode(this);
         }
         if (savedToDB) {
-            PubSubPersistenceManager.updateNode(service, this);
+            provider.updateNode(service, this);
         }
     }
 
@@ -2018,7 +2030,7 @@ public abstract class Node {
 
         if (savedToDB) {
             // Add the new subscription to the database
-            PubSubPersistenceManager.saveSubscription(service, this, subscription, true);
+            provider.saveSubscription(service, this, subscription, true);
         }
 
         if (originalIQ != null) {
@@ -2072,7 +2084,7 @@ public abstract class Node {
         }
         if (savedToDB) {
             // Remove the subscription from the database
-            PubSubPersistenceManager.removeSubscription(service, this, subscription);
+            provider.removeSubscription(service, this, subscription);
         }
         // Check if we need to unsubscribe from the presence of the owner
         if (isPresenceBasedDelivery() && getSubscriptions(subscription.getOwner()).isEmpty()) {

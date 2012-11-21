@@ -22,6 +22,7 @@ package org.jivesoftware.openfire.auth;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.jivesoftware.openfire.provider.AuthProvider;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.ClassUtils;
 import org.jivesoftware.util.JiveGlobals;

@@ -44,6 +44,8 @@ import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.RosterItemProvider;
 import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNameManager;
@@ -95,7 +97,6 @@ public class Roster implements Cacheable, Externalizable {
      */
     private RosterManager rosterManager;
 
-
     /**
      * Constructor added for Externalizable. Do not use this constructor.
      */
@@ -128,8 +129,8 @@ public class Roster implements Cacheable, Externalizable {
         //Collection<Group> userGroups = GroupManager.getInstance().getGroups(getUserJID());
 
         // Add RosterItems that belong to the personal roster
-        rosterItemProvider =  RosterItemProvider.getInstance();
-        Iterator<RosterItem> items = rosterItemProvider.getItems(username);
+        RosterItemProvider provider = ProviderFactory.getRosterProvider();
+        Iterator<RosterItem> items = provider.getItems(username);
         while (items.hasNext()) {
             RosterItem item = items.next();
             // Check if the item (i.e. contact) belongs to a shared group of the user. Add the
@@ -550,7 +551,7 @@ public class Roster implements Cacheable, Externalizable {
                     groups.add(displayName);
                 }
                 else {
-                    // Do not add the shared group if it does not have a displayName. 
+                    // Do not add the shared group if it does not have a displayName.
                     Log.warn("Found shared group: " + sharedGroup.getName() +
                             " with no displayName");
                 }
@@ -740,13 +741,13 @@ public class Roster implements Cacheable, Externalizable {
         size += CacheSizes.sizeOfObject();                           // overhead of object
         size += CacheSizes.sizeOfCollection(rosterItems.values());   // roster item cache
         size += CacheSizes.sizeOfString(username);                   // username
-        
+
         // implicitFrom
         for(Map.Entry<String, Set<String>> entry : implicitFrom.entrySet()) {
         	size += CacheSizes.sizeOfString(entry.getKey());
         	size += CacheSizes.sizeOfCollection(entry.getValue());
         }
-        
+
         return size;
     }
 
@@ -1151,7 +1152,6 @@ public class Roster implements Cacheable, Externalizable {
         presenceManager = XMPPServer.getInstance().getPresenceManager();
         rosterManager = XMPPServer.getInstance().getRosterManager();
         sessionManager = SessionManager.getInstance();
-        rosterItemProvider =  RosterItemProvider.getInstance();
         routingTable = XMPPServer.getInstance().getRoutingTable();
 
         username = ExternalizableUtil.getInstance().readSafeUTF(in);

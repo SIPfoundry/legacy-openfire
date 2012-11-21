@@ -29,7 +29,7 @@ import org.dom4j.Element;
 import org.dom4j.Node;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.lockout.LockOutFlag;
-import org.jivesoftware.openfire.lockout.LockOutProvider;
+import org.jivesoftware.openfire.provider.LockOutProvider;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +57,7 @@ public class ClearspaceLockOutProvider implements LockOutProvider {
 
     /**
      * The ClearspaceLockOutProvider will retrieve lockout information from Clearspace's user properties.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#getDisabledStatus(String)
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#getDisabledStatus(String)
      */
     public LockOutFlag getDisabledStatus(String username) {
         try {
@@ -73,7 +73,7 @@ public class ClearspaceLockOutProvider implements LockOutProvider {
 
     /**
      * The ClearspaceLockOutProvider will set lockouts in Clearspace itself.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#setDisabledStatus(org.jivesoftware.openfire.lockout.LockOutFlag)
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#setDisabledStatus(org.jivesoftware.openfire.lockout.LockOutFlag)
      */
     public void setDisabledStatus(LockOutFlag flag) {
         setEnabledStatus(flag.getUsername(), false);
@@ -81,7 +81,7 @@ public class ClearspaceLockOutProvider implements LockOutProvider {
 
     /**
      * The ClearspaceLockOutProvider will set lockouts in Clearspace itself.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#unsetDisabledStatus(String)
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#unsetDisabledStatus(String)
      */
     public void unsetDisabledStatus(String username) {
         setEnabledStatus(username, true);
@@ -89,7 +89,7 @@ public class ClearspaceLockOutProvider implements LockOutProvider {
 
     /**
      * The ClearspaceLockOutProvider will set lockouts in Clearspace itself.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#isReadOnly()
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#isReadOnly()
      */
     public boolean isReadOnly() {
         return false;
@@ -97,7 +97,7 @@ public class ClearspaceLockOutProvider implements LockOutProvider {
 
     /**
      * Clearspace only supports a strict "are you disabled or not".
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#isDelayedStartSupported()
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#isDelayedStartSupported()
      */
     public boolean isDelayedStartSupported() {
         return false;
@@ -105,7 +105,7 @@ public class ClearspaceLockOutProvider implements LockOutProvider {
 
     /**
      * Clearspace only supports a strict "are you disabled or not".
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#isTimeoutSupported()
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#isTimeoutSupported()
      */
     public boolean isTimeoutSupported() {
         return false;
@@ -113,7 +113,7 @@ public class ClearspaceLockOutProvider implements LockOutProvider {
 
     /**
      * Clearspace needs to always be queried for disabled status.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#shouldNotBeCached()
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#shouldNotBeCached()
      */
     public boolean shouldNotBeCached() {
         return true;

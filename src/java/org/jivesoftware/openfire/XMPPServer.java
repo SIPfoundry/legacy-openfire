@@ -28,10 +28,6 @@ import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.KeyStore;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -42,7 +38,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.dom4j.Document;
 import org.dom4j.io.SAXReader;
-import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.admin.AdminManager;
 import org.jivesoftware.openfire.audit.AuditManager;
 import org.jivesoftware.openfire.audit.spi.AuditManagerImpl;
@@ -88,6 +83,8 @@ import org.jivesoftware.openfire.net.SSLConfig;
 import org.jivesoftware.openfire.net.ServerTrafficCounter;
 import org.jivesoftware.openfire.pep.IQPEPHandler;
 import org.jivesoftware.openfire.pep.IQPEPOwnerHandler;
+import org.jivesoftware.openfire.provider.ConnectivityProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.pubsub.PubSubModule;
 import org.jivesoftware.openfire.roster.RosterManager;
 import org.jivesoftware.openfire.session.RemoteSessionLocator;
@@ -161,7 +158,7 @@ public class XMPPServer {
     /**
      * All modules loaded by this server
      */
-    private Map<Class, Module> modules = new LinkedHashMap<Class, Module>();
+    private Map<Class<?>, Module> modules = new LinkedHashMap<Class<?>, Module>();
 
     /**
      * Listeners that will be notified when the server has started or is about to be stopped.
@@ -426,7 +423,7 @@ public class XMPPServer {
                         if (isStandAlone()) {
                             // Always restart the HTTP server manager. This covers the case
                             // of changing the ports, as well as generating self-signed certificates.
-                        
+
                             // Wait a short period before shutting down the admin console.
                             // Otherwise, the page that requested the setup finish won't
                             // render properly!
@@ -436,7 +433,7 @@ public class XMPPServer {
 //                            ((AdminConsolePlugin) pluginManager.getPlugin("admin")).startup();
                         }
 
-                        verifyDataSource();
+                        ProviderFactory.getConnectivityProvider().verifyDataSource();
                         // First load all the modules so that modules may access other modules while
                         // being initialized
                         loadModules();
@@ -477,7 +474,7 @@ public class XMPPServer {
 
             // If the server has already been setup then we can start all the server's modules
             if (!setupMode) {
-                verifyDataSource();
+            	ProviderFactory.getConnectivityProvider().verifyDataSource();
                 // First load all the modules so that modules may access other modules while
                 // being initialized
                 loadModules();
@@ -499,7 +496,7 @@ public class XMPPServer {
             System.out.println(startupBanner);
 
             started = true;
-            
+
             // Notify server listeners that the server has been started
             for (XMPPServerListener listener : listeners) {
                 listener.serverStarted();
@@ -580,7 +577,7 @@ public class XMPPServer {
      */
     private void loadModule(String module) {
         try {
-            Class modClass = loader.loadClass(module);
+            Class<?> modClass = loader.loadClass(module);
             Module mod = (Module) modClass.newInstance();
             this.modules.put(modClass, mod);
         }
@@ -638,7 +635,7 @@ public class XMPPServer {
     public void restart() {
         if (isStandAlone() && isRestartable()) {
             try {
-                Class wrapperClass = Class.forName(WRAPPER_CLASSNAME);
+                Class<?> wrapperClass = Class.forName(WRAPPER_CLASSNAME);
                 Method restartMethod = wrapperClass.getMethod("restart", (Class []) null);
                 restartMethod.invoke(null, (Object []) null);
             }
@@ -688,7 +685,7 @@ public class XMPPServer {
             // if we're in a wrapper, we have to tell the wrapper to shut us down
             if (isRestartable()) {
                 try {
-                    Class wrapperClass = Class.forName(WRAPPER_CLASSNAME);
+                    Class<?> wrapperClass = Class.forName(WRAPPER_CLASSNAME);
                     Method stopMethod = wrapperClass.getMethod("stop", Integer.TYPE);
                     stopMethod.invoke(null, 0);
                 }
@@ -741,31 +738,6 @@ public class XMPPServer {
             standalone = false;
         }
         return standalone;
-    }
-
-    /**
-     * Verify that the database is accessible.
-     */
-    private void verifyDataSource() {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement("SELECT count(*) FROM ofID");
-            rs = pstmt.executeQuery();
-            rs.next();
-        }
-        catch (Exception e) {
-            System.err.println("Database setup or configuration error: " +
-                    "Please verify your database settings and check the " +
-                    "logs/error.log file for detailed error messages.");
-            Log.error("Database could not be accessed", e);
-            throw new IllegalArgumentException(e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);
-        }
     }
 
     /**
@@ -954,11 +926,11 @@ public class XMPPServer {
         }
         modules.clear();
         // Stop the Db connection manager.
-        DbConnectionManager.destroyConnectionProvider();
+        ProviderFactory.getConnectionManagerWrapper().shutdown();
         // hack to allow safe stopping
         Log.info("Openfire stopped");
     }
-    
+
     /**
      * Returns true if the server is being shutdown.
      *
@@ -1077,7 +1049,7 @@ public class XMPPServer {
     public IQAuthHandler getIQAuthHandler() {
         return (IQAuthHandler) modules.get(IQAuthHandler.class);
     }
-    
+
     /**
      * Returns the <code>IQPEPHandler</code> registered with this server. The
      * <code>IQPEPHandler</code> was registered with the server as a module while starting up
@@ -1270,7 +1242,7 @@ public class XMPPServer {
         }
         return answer;
     }
- 
+
     /**
      * Returns a list with all the modules that provide "discoverable" identities.
      *
@@ -1302,7 +1274,7 @@ public class XMPPServer {
         }
         return answer;
     }
-    
+
     /**
      * Returns a list with all the modules that provide "discoverable" user identities.
      *
@@ -1488,7 +1460,7 @@ public class XMPPServer {
 
     /**
      * Returns whether or not the server has been started.
-     * 
+     *
      * @return whether or not the server has been started.
      */
     public boolean isStarted() {

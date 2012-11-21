@@ -37,6 +37,9 @@ import java.util.Set;
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.AuthFactory;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.UserPropertiesProvider;
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.StringUtils;
@@ -70,8 +73,6 @@ public class DefaultUserProvider implements UserProvider {
     private static final String INSERT_USER =
             "INSERT INTO ofUser (username,plainPassword,encryptedPassword,name,email,creationDate,modificationDate) " +
             "VALUES (?,?,?,?,?,?,?)";
-    private static final String DELETE_USER_PROPS =
-            "DELETE FROM ofUserProp WHERE username=?";
     private static final String DELETE_USER =
             "DELETE FROM ofUser WHERE username=?";
     private static final String UPDATE_NAME =
@@ -83,6 +84,11 @@ public class DefaultUserProvider implements UserProvider {
     private static final String UPDATE_MODIFICATION_DATE =
             "UPDATE ofUser SET modificationDate=? WHERE username=?";
     private static final boolean IS_READ_ONLY = false;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final UserPropertiesProvider provider = ProviderFactory.getUserPropertiesProvider();
 
     public User loadUser(String username) throws UserNotFoundException {
         if(username.contains("@")) {
@@ -192,20 +198,18 @@ public class DefaultUserProvider implements UserProvider {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
-        try {
-            // Delete all of the users's extended properties
-            con = DbConnectionManager.getTransactionConnection();
-            pstmt = con.prepareStatement(DELETE_USER_PROPS);
-            pstmt.setString(1, username);
-            pstmt.execute();
-            DbConnectionManager.fastcloseStmt(pstmt);
+		try {
+			// Delete all of the users's extended properties
+			boolean propsDeleted = provider.deleteUserProperties(username);
 
-            // Delete the actual user entry
-            pstmt = con.prepareStatement(DELETE_USER);
-            pstmt.setString(1, username);
-            pstmt.execute();
-        }
-        catch (Exception e) {
+			if (propsDeleted) {
+				// Delete the actual user entry
+				con = DbConnectionManager.getTransactionConnection();
+				pstmt = con.prepareStatement(DELETE_USER);
+				pstmt.setString(1, username);
+				pstmt.execute();
+			}
+		}        catch (Exception e) {
             Log.error(e.getMessage(), e);
             abortTransaction = true;
         }
@@ -302,7 +306,7 @@ public class DefaultUserProvider implements UserProvider {
             pstmt = con.prepareStatement(UPDATE_NAME);
             if (name == null || name.matches("\\s*")) {
             	pstmt.setNull(1, Types.VARCHAR);
-            } 
+            }
             else {
             	pstmt.setString(1, name);
             }
@@ -325,7 +329,7 @@ public class DefaultUserProvider implements UserProvider {
             pstmt = con.prepareStatement(UPDATE_EMAIL);
             if (email == null || email.matches("\\s*")) {
             	pstmt.setNull(1, Types.VARCHAR);
-            } 
+            }
             else {
             	pstmt.setString(1, email);
             }
@@ -492,7 +496,7 @@ public class DefaultUserProvider implements UserProvider {
      * Make sure that Log.isDebugEnabled()==true before calling this method.
      * Twenty elements will be logged in every log line, so for 81-100 elements
      * five log lines will be generated
-     * @param listElements a list of Strings which will be logged 
+     * @param listElements a list of Strings which will be logged
      */
     private void LogResults(List<String> listElements) {
         String callingMethod = Thread.currentThread().getStackTrace()[3].getMethodName();

@@ -20,7 +20,8 @@
 
 <%@ page import="org.jivesoftware.util.*,
                  java.util.*,
-                 org.jivesoftware.openfire.muc.spi.MUCPersistenceManager"
+                 org.jivesoftware.openfire.provider.ProviderFactory,
+                 org.jivesoftware.openfire.provider.MultiUserChatProvider"
     errorPage="error.jsp"
 %>
 <%@ page import="java.net.URLEncoder" %>
@@ -57,79 +58,80 @@
     // Handle a save
     Map<String,String> errors = new HashMap<String,String>();
     if (save) {
+    	MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
         try {
             int max = Integer.parseInt(maxUsers);
-            MUCPersistenceManager.setProperty(mucname, "room.maxUsers", maxUsers);
+            provider.setProperty(mucname, "room.maxUsers", maxUsers);
         }
         catch (Exception e) {
             errors.put("max_users", "max_users");
         }
         if (errors.size() == 0) {
             if (publicRoom != null && publicRoom.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.publicRoom", "true");
+                provider.setProperty(mucname, "room.publicRoom", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.publicRoom", "false");
+                provider.setProperty(mucname, "room.publicRoom", "false");
             }
             if (persistentRoom != null && persistentRoom.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.persistent", "true");
+                provider.setProperty(mucname, "room.persistent", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.persistent", "false");
+                provider.setProperty(mucname, "room.persistent", "false");
             }
             if (moderatedRoom != null && moderatedRoom.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.moderated", "true");
+                provider.setProperty(mucname, "room.moderated", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.moderated", "false");
+                provider.setProperty(mucname, "room.moderated", "false");
             }
             if (membersOnly != null && membersOnly.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.membersOnly", "true");
+                provider.setProperty(mucname, "room.membersOnly", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.membersOnly", "false");
+                provider.setProperty(mucname, "room.membersOnly", "false");
             }
             if (nonanonymous != null && nonanonymous.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.canAnyoneDiscoverJID", "true");
+                provider.setProperty(mucname, "room.canAnyoneDiscoverJID", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.canAnyoneDiscoverJID", "false");
+                provider.setProperty(mucname, "room.canAnyoneDiscoverJID", "false");
             }
             if (allowInvites != null && allowInvites.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.canOccupantsInvite", "true");
+                provider.setProperty(mucname, "room.canOccupantsInvite", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.canOccupantsInvite", "false");
+                provider.setProperty(mucname, "room.canOccupantsInvite", "false");
             }
             if (changeSubject != null && changeSubject.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.canOccupantsChangeSubject", "true");
+                provider.setProperty(mucname, "room.canOccupantsChangeSubject", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.canOccupantsChangeSubject", "false");
+                provider.setProperty(mucname, "room.canOccupantsChangeSubject", "false");
             }
             if (reservedNick != null && reservedNick.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.loginRestrictedToNickname", "true");
+                provider.setProperty(mucname, "room.loginRestrictedToNickname", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.loginRestrictedToNickname", "false");
+                provider.setProperty(mucname, "room.loginRestrictedToNickname", "false");
             }
             if (canChangeNick != null && canChangeNick.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.canChangeNickname", "true");
+                provider.setProperty(mucname, "room.canChangeNickname", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.canChangeNickname", "false");
+                provider.setProperty(mucname, "room.canChangeNickname", "false");
             }
             if (registrationEnabled != null && registrationEnabled.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.registrationEnabled", "true");
+                provider.setProperty(mucname, "room.registrationEnabled", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.registrationEnabled", "false");
+                provider.setProperty(mucname, "room.registrationEnabled", "false");
             }
             if (enableLog != null && enableLog.trim().length() > 0) {
-                MUCPersistenceManager.setProperty(mucname, "room.logEnabled", "true");
+                provider.setProperty(mucname, "room.logEnabled", "true");
             }
             else {
-                MUCPersistenceManager.setProperty(mucname, "room.logEnabled", "false");
+                provider.setProperty(mucname, "room.logEnabled", "false");
             }
         }
 
@@ -192,7 +194,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_publicroom" value="true" id="publicRoom" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.publicRoom", true)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.publicRoom", true)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="publicRoom"><fmt:message key="muc.default.settings.public_room" /></label>
@@ -201,7 +203,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_persistentroom" value="true" id="persistentRoom" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.persistent", false)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.persistent", false)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="persistentRoom"><fmt:message key="muc.default.settings.persistent_room" /></label>
@@ -210,7 +212,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_moderatedroom" value="true" id="moderated" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.moderated", false)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.moderated", false)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="moderated"><fmt:message key="muc.default.settings.moderated" /></label>
@@ -219,7 +221,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_membersonly" value="true" id="membersOnly" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.membersOnly", false)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.membersOnly", false)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="membersOnly"><fmt:message key="muc.default.settings.members_only" /></label>
@@ -228,7 +230,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_nonanonymous" value="true" id="nonanonymous" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.canAnyoneDiscoverJID", true)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.canAnyoneDiscoverJID", true)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="nonanonymous"><fmt:message key="muc.default.settings.can_anyone_discover_jid" /></label>
@@ -237,7 +239,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_allowinvites" value="true" id="allowInvites" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.canOccupantsInvite", false)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.canOccupantsInvite", false)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="allowInvites"><fmt:message key="muc.default.settings.allow_invites" /></label>
@@ -246,7 +248,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_changesubject" value="true" id="changeSubject" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.canOccupantsChangeSubject", false)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.canOccupantsChangeSubject", false)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="changeSubject"><fmt:message key="muc.default.settings.change_subject" /></label>
@@ -255,7 +257,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_reservednick" value="true" id="reservedNick" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.loginRestrictedToNickname", false)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.loginRestrictedToNickname", false)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="reservedNick"><fmt:message key="muc.default.settings.reserved_nick" /></label>
@@ -264,7 +266,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_canchangenick" value="true" id="canChangeNick" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.canChangeNickname", true)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.canChangeNickname", true)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="canChangeNick"><fmt:message key="muc.default.settings.can_change_nick" /></label>
@@ -273,7 +275,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_registration" value="true" id="registration" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.registrationEnabled", true)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.registrationEnabled", true)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="registration"><fmt:message key="muc.default.settings.registration" /></label>
@@ -282,7 +284,7 @@
             <tr>
                 <td width="1%">
                     <input name="roomconfig_enablelogging" value="true" id="enableLogging" type="checkbox"
-                    <%= ((MUCPersistenceManager.getBooleanProperty(mucname, "room.logEnabled", true)) ? "checked" : "") %>>
+                    <%= ((ProviderFactory.getMUCProvider().getBooleanProperty(mucname, "room.logEnabled", true)) ? "checked" : "") %>>
                 </td>
                 <td width="99%">
                     <label for="enableLogging"><fmt:message key="muc.default.settings.enable_logging" /></label>
@@ -298,11 +300,11 @@
                     <select name="roomconfig_maxusers">
                         <% for(int i=10; i<=50; i=i+10) { %>
                             <option value="<%= i %>"
-                            <%= ((MUCPersistenceManager.getIntProperty(mucname, "room.maxUsers", 30)) == i ? "selected=\"selected\"" : "") %>
+                            <%= ((ProviderFactory.getMUCProvider().getIntProperty(mucname, "room.maxUsers", 30)) == i ? "selected=\"selected\"" : "") %>
                             ><%= i %></option>
                         <% } %>
                         <option value="<%= 0 %>"
-                        <%= ((MUCPersistenceManager.getIntProperty(mucname, "room.maxUsers", 30)) == 0 ? "selected=\"selected\"" : "") %>
+                        <%= ((ProviderFactory.getMUCProvider().getIntProperty(mucname, "room.maxUsers", 30)) == 0 ? "selected=\"selected\"" : "") %>
                         ><fmt:message key="global.unlimited" /></option>
                     </select>
                 </td>

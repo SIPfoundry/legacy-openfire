@@ -27,7 +27,7 @@ import static org.jivesoftware.openfire.clearspace.WSUtils.parseStringArray;
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
-import org.jivesoftware.openfire.group.GroupProvider;
+import org.jivesoftware.openfire.provider.GroupProvider;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.xmpp.packet.JID;
 

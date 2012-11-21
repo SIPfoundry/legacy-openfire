@@ -24,10 +24,6 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Date;
@@ -37,10 +33,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.AuthFactory;
 import org.jivesoftware.openfire.event.UserEventDispatcher;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.UserPropertiesProvider;
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.openfire.roster.Roster;
 import org.jivesoftware.util.StringUtils;
 import org.jivesoftware.util.cache.CacheSizes;
@@ -64,17 +62,6 @@ public class User implements Cacheable, Externalizable, Result {
 
 	private static final Logger Log = LoggerFactory.getLogger(User.class);
 
-    private static final String LOAD_PROPERTIES =
-        "SELECT name, propValue FROM ofUserProp WHERE username=?";
-    private static final String LOAD_PROPERTY =
-        "SELECT propValue FROM ofUserProp WHERE username=? AND name=?";
-    private static final String DELETE_PROPERTY =
-        "DELETE FROM ofUserProp WHERE username=? AND name=?";
-    private static final String UPDATE_PROPERTY =
-        "UPDATE ofUserProp SET propValue=? WHERE name=? AND username=?";
-    private static final String INSERT_PROPERTY =
-        "INSERT INTO ofUserProp (username, name, propValue) VALUES (?, ?, ?)";
-
     // The name of the name visible property
     private static final String NAME_VISIBLE_PROPERTY = "name.visible";
     // The name of the email visible property
@@ -89,6 +76,11 @@ public class User implements Cacheable, Externalizable, Result {
     private Map<String,String> properties = null;
 
     /**
+     * Provider for underlying storage
+     */
+    private final UserPropertiesProvider provider = ProviderFactory.getUserPropertiesProvider();
+
+    /**
      * Returns the value of the specified property for the given username. This method is
      * an optimization to avoid loading a user to get a specific property.
      *
@@ -96,28 +88,8 @@ public class User implements Cacheable, Externalizable, Result {
      * @param propertyName the name of the property to return its value.
      * @return the value of the specified property for the given username.
      */
-    public static String getPropertyValue(String username, String propertyName) {
-        String propertyValue = null;
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(LOAD_PROPERTY);
-            pstmt.setString(1, username);
-            pstmt.setString(2, propertyName);
-            rs = pstmt.executeQuery();
-            while (rs.next()) {
-                propertyValue = rs.getString(1);
-            }
-        }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);
-        }
-        return propertyValue;
+    public String getPropertyValue(String username, String propertyName) {
+        return provider.getPropertyValue(username, propertyName);
     }
 
     /**
@@ -364,7 +336,7 @@ public class User implements Cacheable, Externalizable, Result {
         synchronized (this) {
             if (properties == null) {
                 properties = new ConcurrentHashMap<String, String>();
-                loadProperties();
+				properties.putAll(provider.loadProperties(username));
             }
         }
         // Return a wrapper that will intercept add and remove commands.
@@ -387,8 +359,7 @@ public class User implements Cacheable, Externalizable, Result {
         }
     }
 
-    @Override
-	public int getCachedSize() {
+    public int getCachedSize() {
         // Approximate the size of the object in bytes by calculating the size
         // of each field.
         int size = 0;
@@ -428,26 +399,26 @@ public class User implements Cacheable, Externalizable, Result {
     /**
      * Map implementation that updates the database when properties are modified.
      */
-    private class PropertiesMap extends AbstractMap {
+    private class PropertiesMap extends AbstractMap<String, String> {
 
         @Override
-		public Object put(Object key, Object value) {
+		public String put(String key, String value) {
             Map<String,Object> eventParams = new HashMap<String,Object>();
-            Object answer;
-            String keyString = (String) key;
+            String answer;
+            String keyString = key;
             synchronized ((getName() + keyString).intern()) {
                 if (properties.containsKey(keyString)) {
                     String originalValue = properties.get(keyString);
-                    answer = properties.put(keyString, (String)value);
-                    updateProperty(keyString, (String)value);
+                    answer = properties.put(keyString, value);
+                    provider.updateProperty(username, keyString, value);
                     // Configure event.
                     eventParams.put("type", "propertyModified");
                     eventParams.put("propertyKey", key);
                     eventParams.put("originalValue", originalValue);
                 }
                 else {
-                    answer = properties.put(keyString, (String)value);
-                    insertProperty(keyString, (String)value);
+                    answer = properties.put(keyString, value);
+                    provider.insertProperty(username, keyString, value);
                     // Configure event.
                     eventParams.put("type", "propertyAdded");
                     eventParams.put("propertyKey", key);
@@ -460,7 +431,7 @@ public class User implements Cacheable, Externalizable, Result {
         }
 
         @Override
-		public Set<Entry> entrySet() {
+		public Set<Map.Entry<String, String>> entrySet() {
             return new PropertiesEntrySet();
         }
     }
@@ -468,7 +439,7 @@ public class User implements Cacheable, Externalizable, Result {
     /**
      * Set implementation that updates the database when properties are deleted.
      */
-    private class PropertiesEntrySet extends AbstractSet {
+    private class PropertiesEntrySet extends AbstractSet<Map.Entry<String, String>> {
 
         @Override
 		public int size() {
@@ -476,30 +447,27 @@ public class User implements Cacheable, Externalizable, Result {
         }
 
         @Override
-		public Iterator iterator() {
-            return new Iterator() {
+		public Iterator<Map.Entry<String, String>> iterator() {
+            return new Iterator<Map.Entry<String, String>>() {
 
-                Iterator iter = properties.entrySet().iterator();
-                Map.Entry current = null;
+                Iterator<Map.Entry<String, String>> iter = properties.entrySet().iterator();
+                Map.Entry<String, String> current = null;
 
-                @Override
-				public boolean hasNext() {
+                public boolean hasNext() {
                     return iter.hasNext();
                 }
 
-                @Override
-				public Object next() {
-                    current = (Map.Entry)iter.next();
+                public Map.Entry<String, String> next() {
+                    current = iter.next();
                     return current;
                 }
 
-                @Override
-				public void remove() {
+                public void remove() {
                     if (current == null) {
                         throw new IllegalStateException();
                     }
-                    String key = (String)current.getKey();
-                    deleteProperty(key);
+                    String key = current.getKey();
+                    provider.deleteProperty(username, key);
                     iter.remove();
                     // Fire event.
                     Map<String,Object> params = new HashMap<String,Object>();
@@ -512,85 +480,7 @@ public class User implements Cacheable, Externalizable, Result {
         }
     }
 
-    private void loadProperties() {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(LOAD_PROPERTIES);
-            pstmt.setString(1, username);
-            rs = pstmt.executeQuery();
-            while (rs.next()) {
-                properties.put(rs.getString(1), rs.getString(2));
-            }
-        }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);
-        }
-    }
-
-    private void insertProperty(String propName, String propValue) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(INSERT_PROPERTY);
-            pstmt.setString(1, username);
-            pstmt.setString(2, propName);
-            pstmt.setString(3, propValue);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    private void updateProperty(String propName, String propValue) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(UPDATE_PROPERTY);
-            pstmt.setString(1, propValue);
-            pstmt.setString(2, propName);
-            pstmt.setString(3, username);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    private void deleteProperty(String propName) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(DELETE_PROPERTY);
-            pstmt.setString(1, username);
-            pstmt.setString(2, propName);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    @Override
-	public void writeExternal(ObjectOutput out) throws IOException {
+    public void writeExternal(ObjectOutput out) throws IOException {
         ExternalizableUtil.getInstance().writeSafeUTF(out, username);
         ExternalizableUtil.getInstance().writeSafeUTF(out, getName());
         ExternalizableUtil.getInstance().writeBoolean(out, email != null);
@@ -601,8 +491,7 @@ public class User implements Cacheable, Externalizable, Result {
         ExternalizableUtil.getInstance().writeLong(out, modificationDate.getTime());
     }
 
-    @Override
-	public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         username = ExternalizableUtil.getInstance().readSafeUTF(in);
         name = ExternalizableUtil.getInstance().readSafeUTF(in);
         if (ExternalizableUtil.getInstance().readBoolean(in)) {
@@ -616,7 +505,6 @@ public class User implements Cacheable, Externalizable, Result {
      * (non-Javadoc)
      * @see org.jivesoftware.util.resultsetmanager.Result#getUID()
      */
-	@Override
 	public String getUID()
 	{
 		return username;

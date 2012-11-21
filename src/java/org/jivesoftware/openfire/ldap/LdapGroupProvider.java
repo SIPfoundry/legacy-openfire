@@ -40,7 +40,9 @@ import javax.naming.ldap.LdapName;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
-import org.jivesoftware.openfire.group.GroupProvider;
+import org.jivesoftware.openfire.provider.GroupPropertiesProvider;
+import org.jivesoftware.openfire.provider.GroupProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveConstants;
@@ -63,6 +65,11 @@ public class LdapGroupProvider implements GroupProvider {
     private String[] standardAttributes;
     private int groupCount = -1;
     private long expiresStamp = System.currentTimeMillis();
+
+    /**
+     * Provider for underlying storage
+     */
+    private final GroupPropertiesProvider propsProvider = ProviderFactory.getGroupPropertiesProvider();
 
     /**
      * Constructs a new LDAP group provider.
@@ -165,7 +172,7 @@ public class LdapGroupProvider implements GroupProvider {
 
     public Collection<String> getSharedGroupsNames() {
         // Get the list of shared groups from the database
-        return Group.getSharedGroupsNames();
+        return propsProvider.getSharedGroupsNames();
     }
 
     public Collection<String> getGroupNames() {
@@ -338,7 +345,7 @@ public class LdapGroupProvider implements GroupProvider {
         Set<JID> members = new TreeSet<JID>();
         Attribute memberField = a.get(manager.getGroupMemberField());
         if (memberField != null) {
-            NamingEnumeration ne = memberField.getAll();
+            NamingEnumeration<?> ne = memberField.getAll();
             while (ne.hasMore()) {
                 String username = (String) ne.next();
                 // If not posix mode, each group member is stored as a full DN.
@@ -365,10 +372,10 @@ public class LdapGroupProvider implements GroupProvider {
                             userFilter.append(")");
                             userFilter.append(MessageFormat.format(manager.getSearchFilter(), "*"));
                             userFilter.append(")");
-                            NamingEnumeration usrAnswer = ctx.search("",
+                            NamingEnumeration<SearchResult> usrAnswer = ctx.search("",
                                     userFilter.toString(), searchControls);
                             if (usrAnswer != null && usrAnswer.hasMoreElements()) {
-                                Attribute usernameAttr = ((SearchResult)usrAnswer.next()).getAttributes().get(manager.getUsernameField());
+                                Attribute usernameAttr = usrAnswer.next().getAttributes().get(manager.getUsernameField());
                                 if (usernameAttr != null) {
                                     username = (String)usernameAttr.get();
                                 }

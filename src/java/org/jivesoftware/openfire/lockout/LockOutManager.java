@@ -21,14 +21,12 @@ package org.jivesoftware.openfire.lockout;
 import java.util.Date;
 import java.util.Map;
 
-import org.jivesoftware.util.ClassUtils;
-import org.jivesoftware.util.JiveGlobals;
+import org.jivesoftware.openfire.provider.LockOutProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.cache.Cache;
 import org.jivesoftware.util.cache.CacheFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The LockOutManager manages the LockOutProvider configured for this server, caches knowledge of
@@ -44,8 +42,6 @@ import org.slf4j.LoggerFactory;
  * @author Daniel Henninger
  */
 public class LockOutManager {
-
-	private static final Logger Log = LoggerFactory.getLogger(LockOutManager.class);
 
     // Wrap this guy up so we can mock out the LockOutManager class.
     private static class LockOutManagerContainer {
@@ -87,23 +83,23 @@ public class LockOutManager {
         // Load an lockout provider.
         initProvider();
 
-        // Detect when a new lockout provider class is set 
+        // Detect when a new lockout provider class is set
         PropertyEventListener propListener = new PropertyEventListener() {
-            public void propertySet(String property, Map params) {
+            public void propertySet(String property, Map<String, Object> params) {
                 if ("provider.lockout.className".equals(property)) {
                     initProvider();
                 }
             }
 
-            public void propertyDeleted(String property, Map params) {
+            public void propertyDeleted(String property, Map<String, Object> params) {
                 //Ignore
             }
 
-            public void xmlPropertySet(String property, Map params) {
+            public void xmlPropertySet(String property, Map<String, Object> params) {
                 //Ignore
             }
 
-            public void xmlPropertyDeleted(String property, Map params) {
+            public void xmlPropertyDeleted(String property, Map<String, Object> params) {
                 //Ignore
             }
         };
@@ -115,22 +111,7 @@ public class LockOutManager {
      * DefaultLockOutProvider if the specified provider is not valid or not specified.
      */
     private void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.lockout.className");
-
-        String className = JiveGlobals.getProperty("provider.lockout.className",
-                "org.jivesoftware.openfire.lockout.DefaultLockOutProvider");
-        // Check if we need to reset the provider class
-        if (provider == null || !className.equals(provider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                provider = (LockOutProvider) c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading lockout provider: " + className, e);
-                provider = new DefaultLockOutProvider();
-            }
-        }
+    	provider = ProviderFactory.getLockoutProvider();
     }
 
     /**

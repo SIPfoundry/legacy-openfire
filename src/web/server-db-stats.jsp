@@ -20,7 +20,7 @@
 <%@ page import="java.text.*"
     errorPage="error.jsp"
 %>
-<%@ page import="org.jivesoftware.database.DbConnectionManager"%>
+<%@ page import="org.jivesoftware.openfire.provider.ProviderFactory"%>
 <%@ page import="org.jivesoftware.util.JiveGlobals"%>
 <%@ page import="org.jivesoftware.database.ProfiledConnection"%>
 <%@ page import="org.jivesoftware.database.ProfiledConnectionEntry"%>
@@ -57,18 +57,18 @@
     }
 
     // Enable/disable stats
-    if ("true".equals(enableStats) && ! DbConnectionManager.isProfilingEnabled()) {
-        DbConnectionManager.setProfilingEnabled(true);
+    if ("true".equals(enableStats) && ! ProviderFactory.getConnectionManagerWrapper().isProfilingEnabled()) {
+        ProviderFactory.getConnectionManagerWrapper().setProfilingEnabled(true);
         // Log the event
         webManager.logEvent("enabled db profiling", null);
     }
-    else if ("false".equals(enableStats) && DbConnectionManager.isProfilingEnabled()) {
-        DbConnectionManager.setProfilingEnabled(false);
+    else if ("false".equals(enableStats) && ProviderFactory.getConnectionManagerWrapper().isProfilingEnabled()) {
+        ProviderFactory.getConnectionManagerWrapper().setProfilingEnabled(false);
         // Log the event
         webManager.logEvent("disabled db profiling", null);
     }
 
-    boolean showQueryStats = DbConnectionManager.isProfilingEnabled();
+    boolean showQueryStats = ProviderFactory.getConnectionManagerWrapper().isProfilingEnabled();
 
     // Number intFormat for pretty printing of large number values and decimals:
     NumberFormat intFormat = NumberFormat.getInstance(JiveGlobals.getLocale());

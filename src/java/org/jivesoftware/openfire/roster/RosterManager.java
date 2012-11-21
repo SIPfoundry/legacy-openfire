@@ -20,6 +20,13 @@
 
 package org.jivesoftware.openfire.roster;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.StringTokenizer;
+
 import org.jivesoftware.openfire.RoutingTable;
 import org.jivesoftware.openfire.SharedGroupException;
 import org.jivesoftware.openfire.XMPPServer;
@@ -31,6 +38,8 @@ import org.jivesoftware.openfire.event.UserEventListener;
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.RosterItemProvider;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
@@ -39,8 +48,6 @@ import org.jivesoftware.util.cache.Cache;
 import org.jivesoftware.util.cache.CacheFactory;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Presence;
-
-import java.util.*;
 
 /**
  * A simple service that allows components to retrieve a roster based solely on the ID
@@ -127,7 +134,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
             rosterCache.remove(username);
 
             // Get the rosters that have a reference to the deleted user
-            RosterItemProvider rosteItemProvider = RosterItemProvider.getInstance();
+            RosterItemProvider rosteItemProvider = ProviderFactory.getRosterProvider();
             Iterator<String> usernames = rosteItemProvider.getUsernames(user.toBareJID());
             while (usernames.hasNext()) {
                 username = usernames.next();
@@ -804,7 +811,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
      *
      * This is useful when the group is being edited and some properties has changed and we need to
      * obtain the related users of the group based on the previous group state.
-     */ 
+     */
     private Collection<JID> getAffectedUsers(Group group, String showInRoster, String groupNames) {
         // Answer an empty collection if the group is not being shown in users' rosters
         if (!"onlyGroup".equals(showInRoster) && !"everybody".equals(showInRoster)) {
@@ -833,20 +840,20 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         }
         return users;
     }
-    
+
     Collection<JID> getSharedUsersForRoster(Group group, Roster roster) {
         String showInRoster = group.getProperties().get("sharedRoster.showInRoster");
         String groupNames = group.getProperties().get("sharedRoster.groupList");
-        
+
         // Answer an empty collection if the group is not being shown in users' rosters
         if (!"onlyGroup".equals(showInRoster) && !"everybody".equals(showInRoster)) {
             return new ArrayList<JID>();
         }
-        
+
         // Add the users of the group
         Collection<JID> users = new HashSet<JID>(group.getMembers());
         users.addAll(group.getAdmins());
-        
+
         // If the user of the roster belongs to the shared group then we should return
         // users that need to be in the roster with subscription "from"
         if (group.isUser(roster.getUsername())) {

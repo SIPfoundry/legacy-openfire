@@ -27,6 +27,7 @@ import javax.mail.Session;
 import javax.mail.Store;
 
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.AuthProvider;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;

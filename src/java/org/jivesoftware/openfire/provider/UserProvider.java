@@ -18,11 +18,17 @@
  * limitations under the License.
  */
 
-package org.jivesoftware.openfire.user;
+package org.jivesoftware.openfire.provider;
 
 import java.util.Collection;
 import java.util.Date;
 import java.util.Set;
+
+import org.jivesoftware.openfire.user.User;
+import org.jivesoftware.openfire.user.UserAlreadyExistsException;
+import org.jivesoftware.openfire.user.UserCollection;
+import org.jivesoftware.openfire.user.UserManager;
+import org.jivesoftware.openfire.user.UserNotFoundException;
 
 /**
  * Provider interface for the user system.

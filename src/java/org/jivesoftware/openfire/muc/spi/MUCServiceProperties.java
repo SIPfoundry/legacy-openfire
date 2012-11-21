@@ -20,10 +20,6 @@
 
 package org.jivesoftware.openfire.muc.spi;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,9 +28,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.muc.cluster.MUCServicePropertyClusterEventTask;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.cache.CacheFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,14 +45,14 @@ public class MUCServiceProperties implements Map<String, String> {
 
 	private static final Logger Log = LoggerFactory.getLogger(MUCServiceProperties.class);
 
-    private static final String LOAD_PROPERTIES = "SELECT name, propValue FROM ofMucServiceProp WHERE serviceID=?";
-    private static final String INSERT_PROPERTY = "INSERT INTO ofMucServiceProp(serviceID, name, propValue) VALUES(?,?,?)";
-    private static final String UPDATE_PROPERTY = "UPDATE ofMucServiceProp SET propValue=? WHERE serviceID=? AND name=?";
-    private static final String DELETE_PROPERTY = "DELETE FROM ofMucServiceProp WHERE serviceID=? AND name=?";
-
     private String subdomain;
     private Long serviceID;
     private Map<String, String> properties;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
 
     public MUCServiceProperties(String subdomain) {
         this.subdomain = subdomain;
@@ -71,7 +68,7 @@ public class MUCServiceProperties implements Map<String, String> {
             Log.debug("MUCServiceProperties: Unable to find service ID for subdomain "+subdomain);
         }
         else {
-            loadProperties();
+            provider.loadProperties(properties, serviceID);
         }
     }
 
@@ -169,7 +166,7 @@ public class MUCServiceProperties implements Map<String, String> {
                     properties.remove(name);
                 }
             }
-            deleteProperty((String)key);
+            provider.deleteProperty((String)key, serviceID);
         }
 
         // Generate event.
@@ -182,7 +179,7 @@ public class MUCServiceProperties implements Map<String, String> {
         return value;
     }
 
-    void localRemove(String key) {
+    public void localRemove(String key) {
         properties.remove(key);
         // Also remove any children.
         Collection<String> propNames = getPropertyNames();
@@ -210,11 +207,11 @@ public class MUCServiceProperties implements Map<String, String> {
         synchronized (this) {
             if (properties.containsKey(key)) {
                 if (!properties.get(key).equals(value)) {
-                    updateProperty(key, value);
+                	provider.updateProperty(key, value, serviceID);
                 }
             }
             else {
-                insertProperty(key, value);
+            	provider.insertProperty(key, value, serviceID);
             }
 
             result = properties.put(key, value);
@@ -231,7 +228,7 @@ public class MUCServiceProperties implements Map<String, String> {
         return result;
     }
 
-    void localPut(String key, String value) {
+    public void localPut(String key, String value) {
         properties.put(key, value);
 
         // Generate event.
@@ -264,82 +261,4 @@ public class MUCServiceProperties implements Map<String, String> {
         }
     }
 
-    private void insertProperty(String name, String value) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(INSERT_PROPERTY);
-            pstmt.setLong(1, serviceID);
-            pstmt.setString(2, name);
-            pstmt.setString(3, value);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    private void updateProperty(String name, String value) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(UPDATE_PROPERTY);
-            pstmt.setString(1, value);
-            pstmt.setLong(2, serviceID);
-            pstmt.setString(3, name);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    private void deleteProperty(String name) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(DELETE_PROPERTY);
-            pstmt.setLong(1, serviceID);
-            pstmt.setString(2, name);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    private void loadProperties() {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(LOAD_PROPERTIES);
-            pstmt.setLong(1, serviceID);
-            rs = pstmt.executeQuery();
-            while (rs.next()) {
-                String name = rs.getString(1);
-                String value = rs.getString(2);
-                properties.put(name, value);
-            }
-        }
-        catch (Exception e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);
-        }
-    }
 }

@@ -36,6 +36,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import org.dom4j.io.SAXReader;
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
 import org.jivesoftware.util.StringUtils;
@@ -48,7 +49,7 @@ import org.xmpp.packet.JID;
  *
  * @author Matt Tucker
  */
-public class PubSubPersistenceManager {
+public class PubSubPersistenceManager implements PubSubProvider {
 
 	private static final Logger Log = LoggerFactory.getLogger(PubSubPersistenceManager.class);
 
@@ -166,8 +167,11 @@ public class PubSubPersistenceManager {
             "accessModel, language, replyPolicy, associationPolicy, maxLeafNodes) " +
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
-    private static final int POOL_SIZE = 50; 
-    
+    private static final int POOL_SIZE = 50;
+
+    // formerly in PEPServiceManager
+	private final static String GET_PEP_SERVICE = "SELECT DISTINCT serviceID FROM ofPubsubNode WHERE serviceID=?";
+
     /**
      * Pool of SAX Readers. SAXReader is not thread safe so we need to have a pool of readers.
      */
@@ -183,12 +187,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Creates and stores the node configuration in the database.
-     *
-     * @param service The pubsub service that is hosting the node.
-     * @param node The newly created node.
+     * {@inheritDoc}
      */
-    public static void createNode(PubSubService service, Node node) {
+    public void createNode(PubSubService service, Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -258,12 +259,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Updates the node configuration in the database.
-     *
-     * @param service The pubsub service that is hosting the node.
-     * @param node The updated node.
+     * {@inheritDoc}
      */
-    public static void updateNode(PubSubService service, Node node) {
+    public void updateNode(PubSubService service, Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -394,13 +392,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Removes the specified node from the DB.
-     *
-     * @param service The pubsub service that is hosting the node.
-     * @param node The node that is being deleted.
-     * @return true If the operation was successful.
+     * {@inheritDoc}
      */
-    public static boolean removeNode(PubSubService service, Node node) {
+    public boolean removeNode(PubSubService service, Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -459,11 +453,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Loads all nodes from the database and adds them to the PubSub service.
-     *
-     * @param service the pubsub service that is hosting the nodes.
+     * {@inheritDoc}
      */
-    public static void loadNodes(PubSubService service) {
+    public void loadNodes(PubSubService service) {
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
@@ -761,14 +753,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Update the DB with the new affiliation of the user in the node.
-     *
-     * @param service   The pubsub service that is hosting the node.
-     * @param node      The node where the affiliation of the user was updated.
-     * @param affiliate The new affiliation of the user in the node.
-     * @param create    True if this is a new affiliate.
+     * {@inheritDoc}
      */
-    public static void saveAffiliation(PubSubService service, Node node, NodeAffiliate affiliate,
+    public void saveAffiliation(PubSubService service, Node node, NodeAffiliate affiliate,
             boolean create) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -802,13 +789,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Removes the affiliation and subsription state of the user from the DB.
-     *
-     * @param service   The pubsub service that is hosting the node.
-     * @param node      The node where the affiliation of the user was updated.
-     * @param affiliate The existing affiliation and subsription state of the user in the node.
+     * {@inheritDoc}
      */
-    public static void removeAffiliation(PubSubService service, Node node,
+    public void removeAffiliation(PubSubService service, Node node,
             NodeAffiliate affiliate) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -830,14 +813,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Updates the DB with the new subsription of the user to the node.
-     *
-     * @param service   The pubsub service that is hosting the node.
-     * @param node      The node where the user has subscribed to.
-     * @param subscription The new subscription of the user to the node.
-     * @param create    True if this is a new affiliate.
+     * {@inheritDoc}
      */
-    public static void saveSubscription(PubSubService service, Node node,
+    public void saveSubscription(PubSubService service, Node node,
             NodeSubscription subscription, boolean create) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -916,13 +894,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Removes the subscription of the user from the DB.
-     *
-     * @param service     The pubsub service that is hosting the node.
-     * @param node        The node where the user was subscribed to.
-     * @param subscription The existing subsription of the user to the node.
+     * {@inheritDoc}
      */
-    public static void removeSubscription(PubSubService service, Node node,
+    public void removeSubscription(PubSubService service, Node node,
             NodeSubscription subscription) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -944,12 +918,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Loads and adds the published items to the specified node.
-     *
-     * @param service the pubsub service that is hosting the node.
-     * @param node the leaf node to load its published items.
+     * {@inheritDoc}
      */
-    public static void loadItems(PubSubService service, LeafNode node) {
+    public void loadItems(PubSubService service, LeafNode node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
@@ -992,13 +963,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Creates and stores the published item in the database.
-     *
-     * @param service the pubsub service that is hosting the node.
-     * @param item The published item to save.
-     * @return true if the item was successfully saved to the database.
+     * {@inheritDoc}
      */
-    public static boolean createPublishedItem(PubSubService service, PublishedItem item) {
+    public boolean createPublishedItem(PubSubService service, PublishedItem item) {
         boolean success = false;
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1026,13 +993,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Removes the specified published item from the DB.
-     *
-     * @param service the pubsub service that is hosting the node.
-     * @param item The published item to delete.
-     * @return true if the item was successfully deleted from the database.
+     * {@inheritDoc}
      */
-    public static boolean removePublishedItem(PubSubService service, PublishedItem item) {
+    public boolean removePublishedItem(PubSubService service, PublishedItem item) {
         boolean success = false;
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1057,15 +1020,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Loads from the database the default node configuration for the specified node type
-     * and pubsub service.
-     *
-     * @param service the default node configuration used by this pubsub service.
-     * @param isLeafType true if loading default configuration for leaf nodes.
-     * @return the loaded default node configuration for the specified node type and service
-     *         or <tt>null</tt> if none was found.
+     * {@inheritDoc}
      */
-    public static DefaultNodeConfiguration loadDefaultConfiguration(PubSubService service,
+    public DefaultNodeConfiguration loadDefaultConfiguration(PubSubService service,
             boolean isLeafType) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1112,12 +1069,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Creates a new default node configuration for the specified service.
-     *
-     * @param service the default node configuration used by this pubsub service.
-     * @param config the default node configuration to create in the database.
+     * {@inheritDoc}
      */
-    public static void createDefaultConfiguration(PubSubService service,
+    public void createDefaultConfiguration(PubSubService service,
             DefaultNodeConfiguration config) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1158,12 +1112,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Updates the default node configuration for the specified service.
-     *
-     * @param service the default node configuration used by this pubsub service.
-     * @param config the default node configuration to update in the database.
+     * {@inheritDoc}
      */
-    public static void updateDefaultConfiguration(PubSubService service,
+    public void updateDefaultConfiguration(PubSubService service,
             DefaultNodeConfiguration config) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1376,4 +1327,40 @@ public class PubSubPersistenceManager {
         }
         return nodeID;
     }
+
+    // formerly in PEPServiceManager
+
+    /**
+     * {@inheritDoc}
+     */
+	public String loadPEPServiceFromDB(String jid) {
+		String serviceID = null;
+
+		Connection con = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try {
+			con = DbConnectionManager.getConnection();
+			// Get all PEP services
+			pstmt = con.prepareStatement(GET_PEP_SERVICE);
+			pstmt.setString(1, jid);
+			rs = pstmt.executeQuery();
+			// Restore old PEPServices
+			while (rs.next()) {
+				serviceID = rs.getString(1);
+
+				if (Log.isDebugEnabled()) {
+					Log.debug("PEP: Restored service for " + serviceID
+							+ " from the database.");
+				}
+			}
+		} catch (SQLException sqle) {
+			Log.error(sqle.getMessage(), sqle);
+		} finally {
+			DbConnectionManager.closeConnection(rs, pstmt, con);
+		}
+
+		return serviceID;
+	}
+
 }

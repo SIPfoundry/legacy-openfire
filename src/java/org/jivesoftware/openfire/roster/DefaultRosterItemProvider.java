@@ -33,6 +33,7 @@ import java.util.Map;
 
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.database.SequenceManager;
+import org.jivesoftware.openfire.provider.RosterItemProvider;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveConstants;
@@ -53,9 +54,9 @@ import org.xmpp.packet.JID;
  *
  * @author Iain Shigeoka
  */
-public class RosterItemProvider {
+public class DefaultRosterItemProvider implements RosterItemProvider {
 
-	private static final Logger Log = LoggerFactory.getLogger(RosterItemProvider.class);
+	private static final Logger Log = LoggerFactory.getLogger(DefaultRosterItemProvider.class);
 
     private static final String CREATE_ROSTER_ITEM =
             "INSERT INTO ofRoster (username, rosterID, jid, sub, ask, recv, nick) " +
@@ -72,32 +73,13 @@ public class RosterItemProvider {
             "SELECT DISTINCT username from ofRoster WHERE jid=?";
     private static final String COUNT_ROSTER_ITEMS =
             "SELECT COUNT(rosterID) FROM ofRoster WHERE username=?";
-     private static final String LOAD_ROSTER =
+    private static final String LOAD_ROSTER =
              "SELECT jid, rosterID, sub, ask, recv, nick FROM ofRoster WHERE username=?";
     private static final String LOAD_ROSTER_ITEM_GROUPS =
             "SELECT rosterID,groupName FROM ofRosterGroups";
 
-
-    private static RosterItemProvider instance = new RosterItemProvider();
-
-    public static RosterItemProvider getInstance() {
-        return instance;
-    }
-
     /**
-     * Creates a new roster item for the given user (optional operation).<p>
-     *
-     * <b>Important!</b> The item passed as a parameter to this method is strictly a convenience
-     * for passing all of the data needed for a new roster item. The roster item returned from the
-     * method will be cached by Openfire. In some cases, the roster item passed in will be passed
-     * back out. However, if an implementation may return RosterItems as a separate class
-     * (for example, a RosterItem that directly accesses the backend storage, or one that is an
-     * object in an object database).<p>
-     *
-     * @param username the username of the user/chatbot that owns the roster item.
-     * @param item the settings for the roster item to create.
-     * @return the new roster item.
-     * @throws UserAlreadyExistsException if a roster item with the username already exists. 
+     * {@inheritDoc}
      */
     public RosterItem createItem(String username, RosterItem item)
             throws UserAlreadyExistsException
@@ -131,14 +113,7 @@ public class RosterItemProvider {
     }
 
     /**
-     * Update the roster item in storage with the information contained in the given item
-     * (optional operation).<p>
-     *
-     * If you don't want roster items edited through openfire, throw UnsupportedOperationException.
-     *
-     * @param username the username of the user/chatbot that owns the roster item
-     * @param item   The roster item to update
-     * @throws UserNotFoundException If no entry could be found to update
+     * {@inheritDoc}
      */
     public void updateItem(String username, RosterItem item) throws UserNotFoundException {
         Connection con = null;
@@ -173,13 +148,7 @@ public class RosterItemProvider {
     }
 
     /**
-     * Delete the roster item with the given itemJID for the user (optional operation).<p>
-     *
-     * If you don't want roster items deleted through openfire, throw
-     * UnsupportedOperationException.
-     *
-     * @param username the long ID of the user/chatbot that owns the roster item
-     * @param rosterItemID The roster item to delete
+     * {@inheritDoc}
      */
     public void deleteItem(String username, long rosterItemID) {
         // Only try to remove the user if they exist in the roster already:
@@ -210,10 +179,7 @@ public class RosterItemProvider {
     }
 
     /**
-     * Returns an iterator on the usernames whose roster includes the specified JID.
-     *
-     * @param jid the jid that the rosters should include.
-     * @return an iterator on the usernames whose roster includes the specified JID.
+     * {@inheritDoc}
      */
     public Iterator<String> getUsernames(String jid) {
         List<String> answer = new ArrayList<String>();
@@ -239,10 +205,7 @@ public class RosterItemProvider {
     }
 
     /**
-     * Obtain a count of the number of roster items available for the given user.
-     *
-     * @param username the username of the user/chatbot that owns the roster items
-     * @return The number of roster items available for the user
+     * {@inheritDoc}
      */
     public int getItemCount(String username) {
         int count = 0;
@@ -268,14 +231,7 @@ public class RosterItemProvider {
     }
 
     /**
-     * Retrieve an iterator of RosterItems for the given user.<p>
-     *
-     * This method will commonly be called when a user logs in. The data will be cached
-     * in memory when possible. However, some rosters may be very large so items may need
-     * to be retrieved from the provider more frequently than usual for provider data.
-     *
-     * @param username the username of the user/chatbot that owns the roster items
-     * @return An iterator of all RosterItems owned by the user
+     * {@inheritDoc}
      */
     public Iterator<RosterItem> getItems(String username) {
         LinkedList<RosterItem> itemList = new LinkedList<RosterItem>();

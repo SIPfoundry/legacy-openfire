@@ -31,6 +31,9 @@ import java.util.List;
 
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.GroupPropertiesProvider;
+import org.jivesoftware.openfire.provider.GroupProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,7 +86,12 @@ public class JDBCGroupProvider implements GroupProvider {
     private String loadAdminsSQL;
     private boolean useConnectionProvider;
 
-    private XMPPServer server = XMPPServer.getInstance();  
+    private XMPPServer server = XMPPServer.getInstance();
+
+    /**
+     * Provider for underlying storage
+     */
+    private final GroupPropertiesProvider propsProvider = ProviderFactory.getGroupPropertiesProvider();
 
     /**
      * Constructor of the JDBCGroupProvider class.
@@ -144,8 +152,9 @@ public class JDBCGroupProvider implements GroupProvider {
     }
 
     private Connection getConnection() throws SQLException {
-        if (useConnectionProvider)
-            return DbConnectionManager.getConnection();
+        if (useConnectionProvider) {
+			return DbConnectionManager.getConnection();
+		}
         return DriverManager.getConnection(connectionString);
     }
 
@@ -205,7 +214,7 @@ public class JDBCGroupProvider implements GroupProvider {
                         userJID = new JID(user);
                     }
                     else {
-                        userJID = server.createJID(user, null); 
+                        userJID = server.createJID(user, null);
                     }
                     members.add(userJID);
                 }
@@ -267,7 +276,7 @@ public class JDBCGroupProvider implements GroupProvider {
 
     public Collection<String> getSharedGroupsNames() {
         // Get the list of shared groups from the database
-        return Group.getSharedGroupsNames();
+        return propsProvider.getSharedGroupsNames();
     }
 
     public Collection<String> getGroupNames() {

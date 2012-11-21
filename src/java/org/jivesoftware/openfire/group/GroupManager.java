@@ -30,18 +30,16 @@ import org.jivesoftware.openfire.event.GroupEventDispatcher;
 import org.jivesoftware.openfire.event.GroupEventListener;
 import org.jivesoftware.openfire.event.UserEventDispatcher;
 import org.jivesoftware.openfire.event.UserEventListener;
+import org.jivesoftware.openfire.provider.GroupProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
-import org.jivesoftware.util.ClassUtils;
-import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.TaskEngine;
 import org.jivesoftware.util.cache.Cache;
 import org.jivesoftware.util.cache.CacheFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;
 
 /**
@@ -51,8 +49,6 @@ import org.xmpp.packet.JID;
  * @author Matt Tucker
  */
 public class GroupManager {
-
-	private static final Logger Log = LoggerFactory.getLogger(GroupManager.class);
 
     private static final class GroupManagerContainer {
         private static final GroupManager instance = new GroupManager();
@@ -86,7 +82,7 @@ public class GroupManager {
         initProvider();
 
         GroupEventDispatcher.addListener(new GroupEventListener() {
-            public void groupCreated(Group group, Map params) {
+            public void groupCreated(Group group, Map<String, String> params) {
 
                 // Adds default properties if they don't exists, since the creator of
                 // the group could set them.
@@ -95,22 +91,22 @@ public class GroupManager {
                     group.getProperties().put("sharedRoster.displayName", "");
                     group.getProperties().put("sharedRoster.groupList", "");
                 }
-                
+
                 // Since the group could be created by the provider, add it possible again
                 groupCache.put(group.getName(), group);
 
                 groupMetaCache.clear();
             }
 
-            public void groupDeleting(Group group, Map params) {
+            public void groupDeleting(Group group, Map<String, String> params) {
                 // Since the group could be deleted by the provider, remove it possible again
                 groupCache.remove(group.getName());
-                
+
                 groupMetaCache.clear();
             }
 
-            public void groupModified(Group group, Map params) {
-                String type = (String)params.get("type");
+            public void groupModified(Group group, Map<String, String> params) {
+                String type = params.get("type");
                 // If shared group settings changed, expire the cache.
                 if (type != null && (type.equals("propertyModified") ||
                         type.equals("propertyDeleted") || type.equals("propertyAdded")))
@@ -126,28 +122,28 @@ public class GroupManager {
                 groupCache.put(group.getName(), group);
             }
 
-            public void memberAdded(Group group, Map params) {
+            public void memberAdded(Group group, Map<String, String> params) {
                 groupMetaCache.clear();
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 groupCache.put(group.getName(), group);
             }
 
-            public void memberRemoved(Group group, Map params) {
+            public void memberRemoved(Group group, Map<String, String> params) {
                 groupMetaCache.clear();
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 groupCache.put(group.getName(), group);
             }
 
-            public void adminAdded(Group group, Map params) {
+            public void adminAdded(Group group, Map<String, String> params) {
                 groupMetaCache.clear();
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 groupCache.put(group.getName(), group);
             }
 
-            public void adminRemoved(Group group, Map params) {
+            public void adminRemoved(Group group, Map<String, String> params) {
                 groupMetaCache.clear();
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
@@ -172,21 +168,21 @@ public class GroupManager {
 
         // Detect when a new auth provider class is set
         PropertyEventListener propListener = new PropertyEventListener() {
-            public void propertySet(String property, Map params) {
+            public void propertySet(String property, Map<String, Object> params) {
                 if ("provider.group.className".equals(property)) {
                     initProvider();
                 }
             }
 
-            public void propertyDeleted(String property, Map params) {
+            public void propertyDeleted(String property, Map<String, Object> params) {
                 //Ignore
             }
 
-            public void xmlPropertySet(String property, Map params) {
+            public void xmlPropertySet(String property, Map<String, Object> params) {
                 //Ignore
             }
 
-            public void xmlPropertyDeleted(String property, Map params) {
+            public void xmlPropertyDeleted(String property, Map<String, Object> params) {
                 //Ignore
             }
         };
@@ -217,20 +213,7 @@ public class GroupManager {
     }
 
     private void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.group.className");
-
-        // Load a group provider.
-        String className = JiveGlobals.getProperty("provider.group.className",
-                "org.jivesoftware.openfire.group.DefaultGroupProvider");
-        try {
-            Class c = ClassUtils.forName(className);
-            provider = (GroupProvider) c.newInstance();
-        }
-        catch (Exception e) {
-            Log.error("Error loading group provider: " + className, e);
-            provider = new DefaultGroupProvider();
-        }
+    	provider = ProviderFactory.getGroupProvider();
     }
 
     /**
@@ -474,7 +457,7 @@ public class GroupManager {
     public boolean isPropertyReadOnly() {
         return ClearspaceManager.isEnabled();
     }
-    
+
     /**
      * Returns true if searching for groups is supported.
      *

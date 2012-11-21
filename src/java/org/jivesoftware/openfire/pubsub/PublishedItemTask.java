@@ -23,7 +23,8 @@ package org.jivesoftware.openfire.pubsub;
 import java.util.Queue;
 import java.util.TimerTask;
 
-import org.jivesoftware.openfire.pep.PEPService;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.util.LocaleUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,11 +32,11 @@ import org.slf4j.LoggerFactory;
 /**
  * A timed maintenance task that updates the database by adding and/or
  * removing <code>PublishedItem</code>s in regular intervals.
- * 
+ *
  * @author Matt Tucker
  */
 public class PublishedItemTask extends TimerTask {
-	
+
 	private static final Logger Log = LoggerFactory.getLogger(PublishedItemTask.class);
 
     /**
@@ -67,13 +68,14 @@ public class PublishedItemTask extends TimerTask {
     @Override
 	public void run() {
         try {
+            PubSubProvider provider = ProviderFactory.getPubsubProvider();
             PublishedItem entry;
             boolean success;
             // Delete from the database items contained in the itemsToDelete queue
             for (int index = 0; index <= items_batch_size && !itemsToDelete.isEmpty(); index++) {
                 entry = itemsToDelete.poll();
                 if (entry != null) {
-                    success = PubSubPersistenceManager.removePublishedItem(service, entry);
+                    success = provider.removePublishedItem(service, entry);
                     if (!success) {
                         itemsToDelete.add(entry);
                     }
@@ -83,7 +85,7 @@ public class PublishedItemTask extends TimerTask {
             for (int index = 0; index <= items_batch_size && !itemsToAdd.isEmpty(); index++) {
                 entry = itemsToAdd.poll();
                 if (entry != null) {
-                    success = PubSubPersistenceManager.createPublishedItem(service, entry);
+                    success = provider.createPublishedItem(service, entry);
                     if (!success) {
                         itemsToAdd.add(entry);
                     }
@@ -93,7 +95,7 @@ public class PublishedItemTask extends TimerTask {
             Log.error(LocaleUtils.getLocalizedString("admin.error"), e);
         }
     }
-    
+
 	protected PubSubService getService() {
 		return service;
 	}
