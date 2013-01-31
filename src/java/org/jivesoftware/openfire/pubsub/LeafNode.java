@@ -183,7 +183,7 @@ public class LeafNode extends Node {
         }
     }
 
-    void addPublishedItem(PublishedItem item) {
+    public void addPublishedItem(PublishedItem item) {
         synchronized (publishedItems) {
             publishedItems.add(item);
             itemsByID.put(item.getID(), item);
@@ -269,7 +269,7 @@ public class LeafNode extends Node {
                     // Check and remove any existing items that have the matching ID,
                     // generated ID's won't match since we already checked.
                     PublishedItem duplicate = itemsByID.get(newItem.getID());
-                    
+
                     if (duplicate != null)
                     {
                     	removeItem(findIndexById(duplicate.getID()));
@@ -281,7 +281,7 @@ public class LeafNode extends Node {
                     {
                         removeItem(0);
                     }
-                    
+
                     addPublishedItem(newItem);
                     // Add the new published item to the queue of items to add to the database. The
                     // queue is going to be processed by another thread
@@ -314,9 +314,10 @@ public class LeafNode extends Node {
     	for (int i=0; i<publishedItems.size(); i++)
     	{
     		PublishedItem item = publishedItems.get(i);
-    		
-			if (item.getID().equals(id))
+
+			if (item.getID().equals(id)) {
 				return i;
+			}
 		}
 		return -1;
 	}
@@ -394,7 +395,7 @@ public class LeafNode extends Node {
         Element pubsubElem = result.setChildElement("pubsub", "http://jabber.org/protocol/pubsub");
         Element items = pubsubElem.addElement("items");
         items.addAttribute("node", getNodeID());
-        
+
         for (PublishedItem publishedItem : publishedItems) {
             Element item = items.addElement("item");
             if (isItemRequired()) {
@@ -462,19 +463,19 @@ public class LeafNode extends Node {
         return sendItemSubscribe;
     }
 
-    void setMaxPayloadSize(int maxPayloadSize) {
+    public void setMaxPayloadSize(int maxPayloadSize) {
         this.maxPayloadSize = maxPayloadSize;
     }
 
-    void setPersistPublishedItems(boolean persistPublishedItems) {
+    public void setPersistPublishedItems(boolean persistPublishedItems) {
         this.persistPublishedItems = persistPublishedItems;
     }
 
-    void setMaxPublishedItems(int maxPublishedItems) {
+    public void setMaxPublishedItems(int maxPublishedItems) {
         this.maxPublishedItems = maxPublishedItems;
     }
 
-    void setSendItemSubscribe(boolean sendItemSubscribe) {
+    public void setSendItemSubscribe(boolean sendItemSubscribe) {
         this.sendItemSubscribe = sendItemSubscribe;
     }
 
@@ -513,7 +514,7 @@ public class LeafNode extends Node {
             broadcastNodeEvent(message, false);
         }
     }
-    
+
     private boolean isMaxItemsReached()
     {
     	return (maxPublishedItems > -1 ) && (publishedItems.size() >= maxPublishedItems);

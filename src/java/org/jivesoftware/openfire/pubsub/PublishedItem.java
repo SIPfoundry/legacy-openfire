@@ -20,10 +20,10 @@
 
 package org.jivesoftware.openfire.pubsub;
 
-import org.xmpp.packet.JID;
-import org.dom4j.Element;
-
 import java.util.Date;
+
+import org.dom4j.Element;
+import org.xmpp.packet.JID;
 
 /**
  * A published item to a node. Once an item was published to a node, node subscribers will be
@@ -66,7 +66,7 @@ public class PublishedItem {
      */
     private String payloadXML;
 
-    PublishedItem(LeafNode node, JID publisher, String id, Date creationDate) {
+    public PublishedItem(LeafNode node, JID publisher, String id, Date creationDate) {
         this.node = node;
         this.publisher = publisher;
         this.id = id;
@@ -139,7 +139,7 @@ public class PublishedItem {
      * @param payload the payload included when publishing the item or <tt>null</tt>
      *        if none was found.
      */
-    void setPayload(Element payload) {
+    public void setPayload(Element payload) {
         this.payload = payload;
         // Update XML representation of the payload
         if (payload == null) {

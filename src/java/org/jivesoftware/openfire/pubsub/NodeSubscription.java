@@ -167,7 +167,7 @@ public class NodeSubscription {
      * @param state the state of the subscription with the node.
      * @param id the id the uniquely identifies this subscriptin within the node.
      */
-    NodeSubscription(PubSubService service, Node node, JID owner, JID jid, State state, String id) {
+    public NodeSubscription(PubSubService service, Node node, JID owner, JID jid, State state, String id) {
         this.service = service;
         this.node = node;
         this.jid = jid;
@@ -353,43 +353,43 @@ public class NodeSubscription {
         return keyword;
     }
 
-    void setShouldDeliverNotifications(boolean deliverNotifications) {
+    public void setShouldDeliverNotifications(boolean deliverNotifications) {
         this.deliverNotifications = deliverNotifications;
     }
 
-    void setUsingDigest(boolean usingDigest) {
+    public void setUsingDigest(boolean usingDigest) {
         this.usingDigest = usingDigest;
     }
 
-    void setDigestFrequency(int digestFrequency) {
+    public void setDigestFrequency(int digestFrequency) {
         this.digestFrequency = digestFrequency;
     }
 
-    void setExpire(Date expire) {
+    public void setExpire(Date expire) {
         this.expire = expire;
     }
 
-    void setIncludingBody(boolean includingBody) {
+    public void setIncludingBody(boolean includingBody) {
         this.includingBody = includingBody;
     }
 
-    void setPresenceStates(Collection<String> presenceStates) {
+    public void setPresenceStates(Collection<String> presenceStates) {
         this.presenceStates = presenceStates;
     }
 
-    void setType(Type type) {
+    public void setType(Type type) {
         this.type = type;
     }
 
-    void setDepth(int depth) {
+    public void setDepth(int depth) {
         this.depth = depth;
     }
 
-    void setKeyword(String keyword) {
+    public void setKeyword(String keyword) {
         this.keyword = keyword;
     }
 
-    void setSavedToDB(boolean savedToDB) {
+    public void setSavedToDB(boolean savedToDB) {
         this.savedToDB = savedToDB;
     }
 

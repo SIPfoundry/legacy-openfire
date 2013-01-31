@@ -20,15 +20,19 @@
 
 package org.jivesoftware.openfire.pubsub;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.dom4j.Element;
 import org.jivesoftware.util.LocaleUtils;
 import org.xmpp.forms.DataForm;
 import org.xmpp.forms.FormField;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A type of node that contains nodes and/or other collections but no published
@@ -303,7 +307,7 @@ public class CollectionNode extends Node {
      * @param user the new trusted user that is allowed to associate leaf nodes with this
      *        collection node.
      */
-    void addAssociationTrusted(JID user) {
+    public void addAssociationTrusted(JID user) {
         associationTrusted.add(user);
     }
 
@@ -323,7 +327,7 @@ public class CollectionNode extends Node {
      * @param associationPolicy the policy that defines who may associate leaf nodes
      *        with a collection.
      */
-    void setAssociationPolicy(LeafNodeAssociationPolicy associationPolicy) {
+    public void setAssociationPolicy(LeafNodeAssociationPolicy associationPolicy) {
         this.associationPolicy = associationPolicy;
     }
 
@@ -334,7 +338,7 @@ public class CollectionNode extends Node {
      * @param associationTrusted the users that are allowed to associate leaf nodes with this
      *        collection node.
      */
-    void setAssociationTrusted(Collection<JID> associationTrusted) {
+    public void setAssociationTrusted(Collection<JID> associationTrusted) {
         this.associationTrusted = associationTrusted;
     }
 
@@ -344,7 +348,7 @@ public class CollectionNode extends Node {
      *
      * @param maxLeafNodes the max number of leaf nodes that this collection node might have.
      */
-    void setMaxLeafNodes(int maxLeafNodes) {
+    public void setMaxLeafNodes(int maxLeafNodes) {
         this.maxLeafNodes = maxLeafNodes;
     }
 

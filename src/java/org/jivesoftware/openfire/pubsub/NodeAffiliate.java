@@ -20,11 +20,15 @@
 
 package org.jivesoftware.openfire.pubsub;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.dom4j.Element;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
-
-import java.util.*;
 
 /**
  * A NodeAffiliate keeps information about the affiliation of an entity with a node. Possible
@@ -40,7 +44,7 @@ public class NodeAffiliate {
 
     private Affiliation affiliation;
 
-    NodeAffiliate(Node node, JID jid) {
+    public NodeAffiliate(Node node, JID jid) {
         this.node = node;
         this.jid = jid;
     }
@@ -57,7 +61,7 @@ public class NodeAffiliate {
         return affiliation;
     }
 
-    void setAffiliation(Affiliation affiliation) {
+    public void setAffiliation(Affiliation affiliation) {
         this.affiliation = affiliation;
     }
 
@@ -102,7 +106,7 @@ public class NodeAffiliate {
                     //
                     // If the node ID looks like a JID, replace it with the published item's node ID.
                     if (getNode().getNodeID().indexOf("@") >= 0) {
-                        items.addAttribute("node", publishedItem.getNode().getNodeID());                        
+                        items.addAttribute("node", publishedItem.getNode().getNodeID());
                     }
 
                     // Add item information to the event notification

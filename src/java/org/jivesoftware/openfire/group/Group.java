@@ -254,12 +254,11 @@ public class Group implements Cacheable, Externalizable {
     public Map<String,String> getProperties() {
         synchronized (this) {
             if (properties == null) {
-                properties = new ConcurrentHashMap<String, String>();
-                propsProvider.loadProperties(name);
+                properties = propsProvider.loadProperties(name);
             }
         }
-        // Return a wrapper that will intercept add and remove commands.
-        return new PropertiesMap();
+
+        return properties;
     }
 
     /**
