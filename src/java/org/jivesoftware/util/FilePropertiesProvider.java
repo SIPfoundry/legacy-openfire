@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 public class FilePropertiesProvider implements PropertiesProvider {
 	private static final Logger log = LoggerFactory.getLogger(FilePropertiesProvider.class);
 
-	private static final File PROPS_FILE = new File("../conf/openfire.properties");
+	private static final File PROPS_FILE = new File(System.getProperty("configFile"));
 	private static final Properties PROPS = new Properties();
 
 	public FilePropertiesProvider() {
@@ -31,7 +31,7 @@ public class FilePropertiesProvider implements PropertiesProvider {
 			reader = new FileReader(PROPS_FILE);
 			PROPS.load(reader);
 		} catch (FileNotFoundException e) {
-			log.error("Could not find properties file to read{}", PROPS_FILE.getAbsolutePath());
+			log.error("Could not find properties file to read {}", PROPS_FILE.getAbsolutePath());
 		} catch (IOException e) {
 			log.error("Could not read properties file {} - reason {}", PROPS_FILE.getAbsolutePath(), e.getMessage());
 		} finally {

@@ -103,6 +103,7 @@ exit 0
 %{homedir}/bin/embedded-db-viewer.sh
 %dir %{homedir}/conf
 %config(noreplace) %{homedir}/conf/openfire.xml
+%config(noreplace) %{homedir}/conf/openfire.properties
 %dir %{homedir}/lib
 %{homedir}/lib/*.jar
 %{homedir}/lib/log4j.xml

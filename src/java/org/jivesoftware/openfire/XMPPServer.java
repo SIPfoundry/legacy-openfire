@@ -83,7 +83,6 @@ import org.jivesoftware.openfire.net.SSLConfig;
 import org.jivesoftware.openfire.net.ServerTrafficCounter;
 import org.jivesoftware.openfire.pep.IQPEPHandler;
 import org.jivesoftware.openfire.pep.IQPEPOwnerHandler;
-import org.jivesoftware.openfire.provider.ConnectivityProvider;
 import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.pubsub.PubSubModule;
 import org.jivesoftware.openfire.roster.RosterManager;
@@ -784,7 +783,8 @@ public class XMPPServer {
                 }
             }
             catch (FileNotFoundException fe) {
-                // Ignore.
+            	Log.error("Failed to verify file: [" + homeProperty + "] [" + jiveConfigName + "]");
+            	// Ignore.
             }
         }
 
