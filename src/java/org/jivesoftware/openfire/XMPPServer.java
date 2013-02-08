@@ -780,7 +780,8 @@ public class XMPPServer {
                 }
             }
             catch (FileNotFoundException fe) {
-                // Ignore.
+            	Log.error("Failed to verify file: [" + homeProperty + "] [" + jiveConfigName + "]");
+            	// Ignore.
             }
         }
 

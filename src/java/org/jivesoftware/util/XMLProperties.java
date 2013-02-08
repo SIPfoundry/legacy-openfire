@@ -130,7 +130,7 @@ public class XMLProperties {
             // being there, so throw an error.
             else {
                 throw new FileNotFoundException("XML properties file does not exist: "
-                        + file.getName());
+                        + file.getAbsolutePath());
             }
         }
         // Check read and write privs.
@@ -610,13 +610,17 @@ public class XMLProperties {
         }
         finally {
             try {
-                if (fin != null) fin.close();
+                if (fin != null) {
+					fin.close();
+				}
             }
             catch (IOException e) {
                 // do nothing
             }
             try {
-                if (fout != null) fout.close();
+                if (fout != null) {
+					fout.close();
+				}
             }
             catch (IOException e) {
                 // do nothing
@@ -638,7 +642,9 @@ public class XMLProperties {
                 byte[] buffer = new byte[256];
                 while (true) {
                     int bytesRead = in.read(buffer);
-                    if (bytesRead == -1) break;
+                    if (bytesRead == -1) {
+						break;
+					}
                     out.write(buffer, 0, bytesRead);
                 }
             }
