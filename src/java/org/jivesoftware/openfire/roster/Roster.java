@@ -1153,6 +1153,7 @@ public class Roster implements Cacheable, Externalizable {
         rosterManager = XMPPServer.getInstance().getRosterManager();
         sessionManager = SessionManager.getInstance();
         routingTable = XMPPServer.getInstance().getRoutingTable();
+        rosterItemProvider = ProviderFactory.getRosterProvider();
 
         username = ExternalizableUtil.getInstance().readSafeUTF(in);
         ExternalizableUtil.getInstance().readExternalizableMap(in, rosterItems, getClass().getClassLoader());
