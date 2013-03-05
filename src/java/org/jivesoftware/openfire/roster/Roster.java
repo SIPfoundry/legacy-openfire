@@ -130,8 +130,8 @@ public class Roster implements Cacheable, Externalizable {
         //Collection<Group> userGroups = GroupManager.getInstance().getGroups(getUserJID());
 
         // Add RosterItems that belong to the personal roster
-        RosterItemProvider provider = ProviderFactory.getRosterProvider();
-        Iterator<RosterItem> items = provider.getItems(username);
+        rosterItemProvider = ProviderFactory.getRosterProvider();
+        Iterator<RosterItem> items = rosterItemProvider.getItems(username);
         while (items.hasNext()) {
             RosterItem item = items.next();
             // Check if the item (i.e. contact) belongs to a shared group of the user. Add the
