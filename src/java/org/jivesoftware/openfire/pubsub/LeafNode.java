@@ -324,7 +324,7 @@ public class LeafNode extends Node {
         Element pubsubElem = result.setChildElement("pubsub", "http://jabber.org/protocol/pubsub");
         Element items = pubsubElem.addElement("items");
         items.addAttribute("node", getNodeID());
-        
+
         for (PublishedItem publishedItem : publishedItems) {
             Element item = items.addElement("item");
             if (isItemRequired()) {
@@ -375,19 +375,19 @@ public class LeafNode extends Node {
         return sendItemSubscribe;
     }
 
-    void setMaxPayloadSize(int maxPayloadSize) {
+    public void setMaxPayloadSize(int maxPayloadSize) {
         this.maxPayloadSize = maxPayloadSize;
     }
 
-    void setPersistPublishedItems(boolean persistPublishedItems) {
+    public void setPersistPublishedItems(boolean persistPublishedItems) {
         this.persistPublishedItems = persistPublishedItems;
     }
 
-    void setMaxPublishedItems(int maxPublishedItems) {
+    public void setMaxPublishedItems(int maxPublishedItems) {
         this.maxPublishedItems = maxPublishedItems;
     }
 
-    void setSendItemSubscribe(boolean sendItemSubscribe) {
+    public void setSendItemSubscribe(boolean sendItemSubscribe) {
         this.sendItemSubscribe = sendItemSubscribe;
     }
 

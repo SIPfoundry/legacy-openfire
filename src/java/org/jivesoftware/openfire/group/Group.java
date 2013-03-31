@@ -228,6 +228,7 @@ public class Group implements Cacheable, Externalizable {
                 properties = provider.loadProperties(this);
             }
         }
+
         // Return a wrapper that will intercept add and remove commands.
         return properties;
     }

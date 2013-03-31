@@ -102,7 +102,7 @@ public class PublishedItem implements Serializable {
      */
     private String payloadXML;
 
-    PublishedItem(LeafNode node, JID publisher, String id, Date creationDate) {
+    public PublishedItem(LeafNode node, JID publisher, String id, Date creationDate) {
         this.node = node;
         this.nodeId = node.getNodeID();
         this.serviceId = node.getService().getServiceID();
@@ -233,7 +233,7 @@ public class PublishedItem implements Serializable {
      * @param payload the payload included when publishing the item or <tt>null</tt>
      *        if none was found.
      */
-    void setPayload(Element payload) {
+    public void setPayload(Element payload) {
         this.payload = payload;
         // Update XML representation of the payload
         if (payload == null) {

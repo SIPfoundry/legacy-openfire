@@ -20,11 +20,15 @@
 
 package org.jivesoftware.openfire.pubsub;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.dom4j.Element;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
-
-import java.util.*;
 
 /**
  * A NodeAffiliate keeps information about the affiliation of an entity with a node. Possible
