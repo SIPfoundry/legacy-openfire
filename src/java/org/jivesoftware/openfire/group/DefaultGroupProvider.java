@@ -31,8 +31,6 @@ import java.util.List;
 
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
-import org.jivesoftware.openfire.provider.GroupPropertiesProvider;
-import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;
@@ -76,13 +74,7 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
     private static final String ALL_GROUPS = "SELECT groupName FROM ofGroup ORDER BY groupName";
     private static final String SEARCH_GROUP_NAME = "SELECT groupName FROM ofGroup WHERE groupName LIKE ? ORDER BY groupName";
 
-    private XMPPServer server = XMPPServer.getInstance();
-
-	/**
-	 * Provider for underlying storage
-	 */
-	private final GroupPropertiesProvider propsProvider = ProviderFactory
-			.getGroupPropertiesProvider();
+    private final XMPPServer server = XMPPServer.getInstance();
 
 	@Override
 	public Group createGroup(String name) {
@@ -167,9 +159,9 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
             pstmt.setString(2, oldName);
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
-            
+
 			boolean renamed = propsProvider.setName(oldName, newName);
-            
+
 			if (renamed) {
 	            pstmt = con.prepareStatement(SET_GROUP_NAME_3);
 	            pstmt.setString(1, newName);
@@ -199,11 +191,11 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
             pstmt.setString(1, groupName);
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
-            
+
             // Remove all properties of the group.
 			boolean propsDeleted = propsProvider
 					.deleteGroupProperties(groupName);
-            
+
 			if (propsDeleted) {
 	            // Remove the group entry.
 	            pstmt = con.prepareStatement(DELETE_GROUP);
@@ -242,11 +234,6 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         }
         return count;
     }
-
-	public Collection<String> getSharedGroupsNames() {
-		// Get the list of shared groups from the database
-		return propsProvider.getSharedGroupsNames();
-	}
 
     public Collection<String> getGroupNames() {
         List<String> groupNames = new ArrayList<String>();
@@ -425,7 +412,7 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
                while (rs.next() && count < numResults) {
                    groupNames.add(rs.getString(1));
                    count++;
-               }	
+               }
             }
         }
         catch (SQLException e) {

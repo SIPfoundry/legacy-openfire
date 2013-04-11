@@ -18,6 +18,8 @@
  */
 package org.jivesoftware.openfire.provider;
 
+import java.util.List;
+
 import org.jivesoftware.openfire.pubsub.DefaultNodeConfiguration;
 import org.jivesoftware.openfire.pubsub.LeafNode;
 import org.jivesoftware.openfire.pubsub.Node;
@@ -66,6 +68,8 @@ public interface PubSubProvider {
 	 */
 	 void loadNodes(PubSubService service);
 
+	 void loadNode(PubSubService service, String nodeId);
+
 	/**
 	 * Update the DB with the new affiliation of the user in the node.
 	 *
@@ -87,7 +91,9 @@ public interface PubSubProvider {
 	 void removeAffiliation(PubSubService service, Node node,
 			NodeAffiliate affiliate);
 
-	/**
+	 void loadSubscription(PubSubService service, Node node, String subId);
+
+	 /**
 	 * Updates the DB with the new subsription of the user to the node.
 	 *
 	 * @param service   The pubsub service that is hosting the node.
@@ -125,6 +131,16 @@ public interface PubSubProvider {
 	 */
 	 //boolean createPublishedItem(PubSubService service,
 	//		PublishedItem item);
+	 PublishedItem getPublishedItem(LeafNode node, String itemID);
+	 List<PublishedItem> getPublishedItems(LeafNode node);
+	 List<PublishedItem> getPublishedItems(LeafNode node, int maxRows);
+	 PublishedItem getLastPublishedItem(LeafNode node);
+	 PublishedItem loadItem(LeafNode node, String itemID);
+	 void removePublishedItem(PublishedItem item);
+	 void savePublishedItem(PublishedItem item);
+	 void flushPendingItems();
+	 void flushPendingItems(boolean sendToCluster);
+	 void purgeNode(LeafNode leafNode);
 
 	/**
 	 * Removes the specified published item from the DB.

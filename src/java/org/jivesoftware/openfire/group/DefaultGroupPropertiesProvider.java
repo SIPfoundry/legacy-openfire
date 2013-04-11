@@ -23,7 +23,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -38,50 +38,56 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	private static final Logger log = LoggerFactory
 			.getLogger(DefaultGroupPropertiesProvider.class);
 
+    private static final String GROUPLIST_CONTAINERS = "SELECT groupName from ofGroupProp where name='sharedRoster.groupList' AND propValue LIKE ?";
+    private static final String GROUPS_FOR_PROP = "SELECT groupName from ofGroupProp WHERE name=? AND propValue=?";
 	private static final String LOAD_PROPERTIES = "SELECT name, propValue FROM ofGroupProp WHERE groupName=?";
 	private static final String DELETE_PROPERTY = "DELETE FROM ofGroupProp WHERE groupName=? AND name=?";
 	private static final String UPDATE_PROPERTY = "UPDATE ofGroupProp SET propValue=? WHERE name=? AND groupName=?";
 	private static final String INSERT_PROPERTY = "INSERT INTO ofGroupProp (groupName, name, propValue) VALUES (?, ?, ?)";
-	private static final String LOAD_SHARED_GROUPS = "SELECT groupName FROM ofGroupProp WHERE name='sharedRoster.showInRoster' "
-			+ "AND propValue IS NOT NULL AND propValue <> 'nobody'";
+    private static final String LOAD_SHARED_GROUPS = "SELECT groupName FROM ofGroupProp WHERE name='sharedRoster.showInRoster' AND propValue IS NOT NULL AND propValue <> 'nobody'";
 	private static final String SET_GROUP_NAME_2 = "UPDATE ofGroupProp SET groupName=? WHERE groupName=?";
 	private static final String DELETE_PROPERTIES = "DELETE FROM ofGroupProp WHERE groupName=?";
 
 	/**
 	 * {@inheritDoc}
 	 */
-	public Map<String, String> loadProperties(String groupName) {
-		Map<String, String> properties = new HashMap<String, String>();
-		Connection con = null;
-		PreparedStatement pstmt = null;
-		ResultSet rs = null;
-		try {
-			con = DbConnectionManager.getConnection();
-			pstmt = con.prepareStatement(LOAD_PROPERTIES);
-			pstmt.setString(1, groupName);
-			rs = pstmt.executeQuery();
-			while (rs.next()) {
-				String key = rs.getString(1);
-				String value = rs.getString(2);
-				if (key != null) {
-					if (value == null) {
-						value = "";
-						log.warn("There is a group property whose value is null of Group: "
-								+ groupName);
-					}
-					properties.put(key, value);
-				} else {
-					log.warn("There is a group property whose key is null of Group: "
-							+ groupName);
-				}
-			}
-		} catch (SQLException sqle) {
-			log.error(sqle.getMessage(), sqle);
-		} finally {
-			DbConnectionManager.closeConnection(rs, pstmt, con);
-		}
+	public Map<String, String> loadProperties(Group group) {
+    	// custom map implementation persists group property changes
+    	// whenever one of the standard mutator methods are called
+    	String name = group.getName();
+    	DefaultGroupPropertyMap<String,String> result = new DefaultGroupPropertyMap<String,String>(group);
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            con = DbConnectionManager.getConnection();
+            pstmt = con.prepareStatement(LOAD_PROPERTIES);
+            pstmt.setString(1, name);
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                String key = rs.getString(1);
+                String value = rs.getString(2);
+                if (key != null) {
+                    if (value == null) {
+                        result.remove(key);
+                        log.warn("Deleted null property " + key + " for group: " + name);
+                    } else {
+                    	result.put(key, value, false); // skip persistence during load
+                    }
+                }
+                else { // should not happen, but ...
+                    log.warn("Ignoring null property key for group: " + name);
+                }
+            }
+        }
+        catch (SQLException sqle) {
+            log.error(sqle.getMessage(), sqle);
+        }
+        finally {
+            DbConnectionManager.closeConnection(rs, pstmt, con);
+        }
 
-		return properties;
+		return result;
 	}
 
 	/**
@@ -149,22 +155,25 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	 * {@inheritDoc}
 	 */
 	public Set<String> getSharedGroupsNames() {
-		Set<String> groupNames = new HashSet<String>();
-		Connection con = null;
-		PreparedStatement pstmt = null;
-		ResultSet rs = null;
-		try {
-			con = DbConnectionManager.getConnection();
-			pstmt = con.prepareStatement(LOAD_SHARED_GROUPS);
-			rs = pstmt.executeQuery();
-			while (rs.next()) {
-				groupNames.add(rs.getString(1));
-			}
-		} catch (SQLException sqle) {
-			log.error(sqle.getMessage(), sqle);
-		} finally {
-			DbConnectionManager.closeConnection(rs, pstmt, con);
-		}
+        Set<String> groupNames = new HashSet<String>();
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            con = DbConnectionManager.getConnection();
+            pstmt = con.prepareStatement(LOAD_SHARED_GROUPS);
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                groupNames.add(rs.getString(1));
+            }
+        }
+        catch (SQLException sqle) {
+            log.error(sqle.getMessage(), sqle);
+        }
+        finally {
+            DbConnectionManager.closeConnection(rs, pstmt, con);
+        }
+
 		return groupNames;
 	}
 
@@ -224,5 +233,56 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 		}
 
 		return deleted;
+	}
+
+	public Collection<String> getVisibleGroupNames(String userGroup) {
+		Set<String> groupNames = new HashSet<String>();
+        Connection con = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try {
+		    con = DbConnectionManager.getConnection();
+		    pstmt = con.prepareStatement(GROUPLIST_CONTAINERS);
+		    pstmt.setString(1, "%" + userGroup + "%");
+		    rs = pstmt.executeQuery();
+		    while (rs.next()) {
+		        groupNames.add(rs.getString(1));
+		    }
+		}
+		catch (SQLException sqle) {
+		    log.error(sqle.getMessage(), sqle);
+		}
+		finally {
+		    DbConnectionManager.closeConnection(rs, pstmt, con);
+		}
+		return groupNames;
+	}
+
+	public Collection<String> getPublicSharedGroupNames() {
+        return search("sharedRoster.showInRoster", "everybody");
+	}
+
+	public Collection<String> search(String key, String value) {
+		Set<String> groupNames = new HashSet<String>();
+        Connection con = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try {
+		    con = DbConnectionManager.getConnection();
+		    pstmt = con.prepareStatement(GROUPS_FOR_PROP);
+		    pstmt.setString(1, key);
+		    pstmt.setString(2, value);
+		    rs = pstmt.executeQuery();
+		    while (rs.next()) {
+		        groupNames.add(rs.getString(1));
+		    }
+		}
+		catch (SQLException sqle) {
+		    log.error(sqle.getMessage(), sqle);
+		}
+		finally {
+		    DbConnectionManager.closeConnection(rs, pstmt, con);
+		}
+		return groupNames;
 	}
 }

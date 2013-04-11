@@ -1085,7 +1085,7 @@
     </target>
     
     <!-- installer.rpm ========================================================================= -->
-    <property name="bundle.jre" value="true" />
+    <property name="bundle.jre" value="false" />
     <property name="target.work.subdir" value="rpm" />
     <property name="target.rpm" value="${work.dir}/${target.work.subdir}" />
     <property name="rpm.spec.file" value="${basedir}/build/rpm/openfire.spec"/>

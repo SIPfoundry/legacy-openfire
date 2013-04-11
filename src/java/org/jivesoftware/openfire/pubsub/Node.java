@@ -32,13 +32,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.dom4j.Element;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.cluster.ClusterManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.cluster.AffiliationTask;
 import org.jivesoftware.openfire.pubsub.cluster.CancelSubscriptionTask;
 import org.jivesoftware.openfire.pubsub.cluster.ModifySubscriptionTask;
 import org.jivesoftware.openfire.pubsub.cluster.NewSubscriptionTask;
 import org.jivesoftware.openfire.pubsub.cluster.RemoveNodeTask;
-import org.jivesoftware.openfire.provider.ProviderFactory;
-import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
 import org.jivesoftware.util.LocaleUtils;
@@ -371,7 +371,7 @@ public abstract class Node {
             // Add or update the affiliate in the database
             provider.saveAffiliation(service, this, affiliate, created);
         }
-        
+
         // Update the other members with the new affiliation
         CacheFactory.doClusterTask(new AffiliationTask(this, jid, affiliation));
 
@@ -895,7 +895,7 @@ public abstract class Node {
             formField.setType(FormField.Type.text_single);
             formField.setLabel(LocaleUtils.getLocalizedString("pubsub.form.conf.node_type"));
         }
-        
+
         formField = form.addField();
         formField.setVariable("pubsub#collection");
         if (isEditing) {
@@ -1903,11 +1903,11 @@ public abstract class Node {
      *
      * @param newParent the new parent node of this node.
      */
-    protected void changeParent(CollectionNode newParent) {
+    public void changeParent(CollectionNode newParent) {
     	if (parent == newParent) {
     		return;
     	}
-    	
+
         if (parent != null) {
             // Remove this node from the current parent node
             parent.removeChildNode(this);
@@ -2293,14 +2293,16 @@ public abstract class Node {
 
     @Override
 	public boolean equals(Object obj) {
-    	if (obj == this)
-    		return true;
-    	
-    	if (getClass() != obj.getClass())
-    		return false;
-    	
+    	if (obj == this) {
+			return true;
+		}
+
+    	if (getClass() != obj.getClass()) {
+			return false;
+		}
+
     	Node compareNode = (Node) obj;
-    	
+
 		return (service.getServiceID().equals(compareNode.service.getServiceID()) && nodeID.equals(compareNode.nodeID));
 	}
 

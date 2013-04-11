@@ -18,9 +18,11 @@
  */
 package org.jivesoftware.openfire.provider;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
+import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
 
 /**
@@ -34,11 +36,11 @@ public interface GroupPropertiesProvider {
 	/**
 	 * Load all properties for a given group
 	 *
-	 * @param groupName
-	 *            The name of the group whose properties we want to retrieve
+	 * @param group
+	 *            The group whose properties we want to retrieve
 	 * @return Mapping between properties and values
 	 */
-	Map<String, String> loadProperties(String groupName);
+	Map<String, String> loadProperties(Group group);
 
 	/**
 	 * Add a property for a specific group
@@ -81,6 +83,10 @@ public interface GroupPropertiesProvider {
 	 */
 	Set<String> getSharedGroupsNames();
 
+	Collection<String> getPublicSharedGroupNames();
+
+	Collection<String> getVisibleGroupNames(String userGroup);
+
 	/**
 	 * Rename a group
 	 *
@@ -106,4 +112,5 @@ public interface GroupPropertiesProvider {
 	 */
 	boolean deleteGroupProperties(String groupName);
 
+	Collection<String> search(String key, String value);
 }

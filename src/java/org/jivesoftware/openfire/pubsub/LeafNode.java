@@ -29,6 +29,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.dom4j.Element;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.util.LocaleUtils;
 import org.xmpp.forms.DataForm;
 import org.xmpp.forms.FormField;
@@ -72,6 +74,11 @@ public class LeafNode extends Node {
      * The last item published to this node.  In a cluster this may have occurred on a different cluster node.
      */
     private PublishedItem lastPublished;
+
+    /**
+     * Provider for the underlying storage
+     */
+    private final PubSubProvider pubSubProvider = ProviderFactory.getPubsubProvider();
 
     // TODO Add checking of max payload size. Return <not-acceptable> plus a application specific error condition of <payload-too-big/>.
 
@@ -127,7 +134,7 @@ public class LeafNode extends Node {
 
         FormField typeField = form.getField("pubsub#node_type");
         typeField.addValue("leaf");
-        
+
         FormField formField = form.addField();
         formField.setVariable("pubsub#send_item_subscribe");
         if (isEditing) {
@@ -169,8 +176,9 @@ public class LeafNode extends Node {
 
 	public synchronized void setLastPublishedItem(PublishedItem item)
 	{
-		if ((lastPublished == null) || (item != null) && item.getCreationDate().after(lastPublished.getCreationDate()))
+		if ((lastPublished == null) || (item != null) && item.getCreationDate().after(lastPublished.getCreationDate())) {
 			lastPublished = item;
+		}
     }
 
     public int getMaxPayloadSize() {
@@ -233,7 +241,7 @@ public class LeafNode extends Node {
                 itemID = item.attributeValue("id");
                 List entries = item.elements();
                 payload = entries.isEmpty() ? null : (Element) entries.get(0);
-                
+
                 // Make sure that the published item has a unique ID if NOT assigned by publisher
                 if (itemID == null) {
                 	itemID = genIdSeed + sequenceCounter.getAndIncrement();
@@ -248,7 +256,7 @@ public class LeafNode extends Node {
                 // Add the new published item to the queue of items to add to the database. The
                 // queue is going to be processed by another thread
                 if (isPersistPublishedItems()) {
-                	PubSubPersistenceManager.savePublishedItem(newItem);
+                	pubSubProvider.savePublishedItem(newItem);
                 }
             }
         }
@@ -285,7 +293,7 @@ public class LeafNode extends Node {
     public void deleteItems(List<PublishedItem> toDelete) {
         // Remove deleted items from the database
         for (PublishedItem item : toDelete) {
-            PubSubPersistenceManager.removePublishedItem(item);
+        	pubSubProvider.removePublishedItem(item);
         }
         if (isNotifiedOfRetract()) {
             // Broadcast notification deletion to subscribers
@@ -344,23 +352,23 @@ public class LeafNode extends Node {
         if (!isItemRequired()) {
             return null;
         }
-        return PubSubPersistenceManager.getPublishedItem(this, itemID);
+        return pubSubProvider.getPublishedItem(this, itemID);
     }
 
     @Override
 	public List<PublishedItem> getPublishedItems() {
-        return PubSubPersistenceManager.getPublishedItems(this, getMaxPublishedItems());
+        return pubSubProvider.getPublishedItems(this, getMaxPublishedItems());
     }
 
     @Override
 	public List<PublishedItem> getPublishedItems(int recentItems) {
-        return PubSubPersistenceManager.getPublishedItems(this, recentItems);
+        return pubSubProvider.getPublishedItems(this, recentItems);
     }
 
     @Override
 	public synchronized PublishedItem getLastPublishedItem() {
     	if (lastPublished == null){
-    		lastPublished = PubSubPersistenceManager.getLastPublishedItem(this);
+    		lastPublished = pubSubProvider.getLastPublishedItem(this);
     	}
     	return lastPublished;
     }
@@ -397,7 +405,7 @@ public class LeafNode extends Node {
      * published items will be deleted with the exception of the last published item.
      */
     public void purge() {
-        PubSubPersistenceManager.purgeNode(this);
+    	pubSubProvider.purgeNode(this);
         // Broadcast purge notification to subscribers
         // Build packet to broadcast to subscribers
         Message message = new Message();

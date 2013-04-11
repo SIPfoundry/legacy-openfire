@@ -57,21 +57,21 @@ public class PublishedItem implements Serializable {
     private static BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<SAXReader>(POOL_SIZE);
 
     private static final long serialVersionUID = 7012925993623144574L;
-    
+
     static {
         // Initialize the pool of sax readers
         for (int i=0; i<POOL_SIZE; i++) {
             SAXReader xmlReader = new SAXReader();
             xmlReader.setEncoding("UTF-8");
             xmlReaders.add(xmlReader);
-        }    	
+        }
     }
-	
+
 	/**
      * JID of the entity that published the item to the node. This is the full JID
      * of the publisher.
      */
-    private JID publisher;
+    private final JID publisher;
     /**
      * The node where the item was published.
      */
@@ -79,19 +79,19 @@ public class PublishedItem implements Serializable {
     /**
      * The id for the node where the item was published.
      */
-    private String nodeId;
+    private final String nodeId;
     /**
      * The id for the service hosting the node for this item
      */
-    private String serviceId;
+    private final String serviceId;
     /**
      * ID that uniquely identifies the published item in the node.
      */
-    private String id;
+    private final String id;
     /**
      * The datetime when the items was published.
      */
-    private Date creationDate;
+    private final Date creationDate;
     /**
      * The optional payload is included when publishing the item. This value
      * is created from the payload XML and cached as/when needed.
@@ -187,7 +187,7 @@ public class PublishedItem implements Serializable {
 		            SAXReader xmlReader = null;
 		    		try {
 		    			xmlReader = xmlReaders.take();
-		    			payload = xmlReader.read(new StringReader(payloadXML)).getRootElement(); 
+		    			payload = xmlReader.read(new StringReader(payloadXML)).getRootElement();
 		    		} catch (Exception ex) {
 		    			 log.error("Failed to parse payload XML", ex);
 		    		} finally {
@@ -220,7 +220,7 @@ public class PublishedItem implements Serializable {
      * @param payloadXML the payload included when publishing the item or <tt>null</tt>
      *        if none was found.
      */
-    void setPayloadXML(String payloadXML) {
+    public void setPayloadXML(String payloadXML) {
     	this.payloadXML = payloadXML;
     	this.payload = null; // will be recreated only if needed
     }
@@ -250,7 +250,7 @@ public class PublishedItem implements Serializable {
      * @param keyword the keyword to look for in the payload.
      * @return true if payload contains the specified keyword.
      */
-    boolean containsKeyword(String keyword) {
+    public boolean containsKeyword(String keyword) {
         if (getPayloadXML() == null || keyword == null) {
             return true;
         }

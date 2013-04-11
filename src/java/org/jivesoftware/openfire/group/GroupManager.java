@@ -65,8 +65,8 @@ public class GroupManager {
         return GroupManagerContainer.instance;
     }
 
-    private Cache<String, Group> groupCache;
-    private Cache<String, Object> groupMetaCache;
+    private final Cache<String, Group> groupCache;
+    private final Cache<String, Object> groupMetaCache;
     private GroupProvider provider;
 
     private GroupManager() {
@@ -109,7 +109,7 @@ public class GroupManager {
             public void groupDeleting(Group group, Map<String, String> params) {
                 // Since the group could be deleted by the provider, remove it possible again
                 groupCache.remove(group.getName());
-                
+
                 // Evict only the information related to Groups.
                 // Do not evict groups with 'user' as keys.
                 groupMetaCache.remove(GROUP_COUNT_KEY);
@@ -136,7 +136,7 @@ public class GroupManager {
 	                    	groupMetaCache.remove(GROUP_NAMES_KEY);
 	                        groupMetaCache.remove(SHARED_GROUPS_KEY);
 	                    }
-	                }	
+	                }
                 	// clean up cache for old group name
                 	if (type.equals("nameModified")) {
                 		String originalName = params.get("originalValue");
@@ -146,13 +146,13 @@ public class GroupManager {
 
                         groupMetaCache.remove(GROUP_NAMES_KEY);
                         groupMetaCache.remove(SHARED_GROUPS_KEY);
-                		
+
                 		// Evict cached information for affected users
                         evictCachedUsersForGroup(group);
 
                         // Evict cached paginated group names
                         evictCachedPaginatedGroupNames();
-                        
+
                 	}
                 }
                 // Set object again in cache. This is done so that other cluster nodes
@@ -165,7 +165,7 @@ public class GroupManager {
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 groupCache.put(group.getName(), group);
-                
+
                 // Remove only the collection of groups the member belongs to.
                 String member = params.get("member");
                 if(member != null) {
@@ -178,7 +178,7 @@ public class GroupManager {
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 groupCache.put(group.getName(), group);
-                
+
                 // Remove only the collection of groups the member belongs to.
                 String member = params.get("member");
                 if(member != null) {
@@ -191,7 +191,7 @@ public class GroupManager {
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 groupCache.put(group.getName(), group);
-                
+
                 // Remove only the collection of groups the member belongs to.
                 String member = params.get("admin");
                 if(member != null) {
@@ -204,7 +204,7 @@ public class GroupManager {
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 groupCache.put(group.getName(), group);
-                
+
                 // Remove only the collection of groups the member belongs to.
                 String member = params.get("admin");
                 if(member != null) {
@@ -383,7 +383,7 @@ public class GroupManager {
 
     /**
      * Returns an unmodifiable Collection of all groups in the system.
-     * 
+     *
      * NOTE: Iterating through the resulting collection has the effect of loading
      * every group into memory. This may be an issue for large deployments. You
      * may call the size() method on the resulting collection to determine the best
@@ -407,7 +407,7 @@ public class GroupManager {
 
     /**
      * Returns an unmodifiable Collection of all shared groups in the system.
-     * 
+     *
      * NOTE: Iterating through the resulting collection has the effect of loading all
      * shared groups into memory. This may be an issue for large deployments. You
      * may call the size() method on the resulting collection to determine the best
@@ -428,7 +428,7 @@ public class GroupManager {
         }
         return new GroupCollection(groupNames);
     }
-    
+
     /**
      * Returns an unmodifiable Collection of all shared groups in the system for a given userName.
      *
@@ -441,7 +441,7 @@ public class GroupManager {
                 groupNames = (Collection<String>)groupMetaCache.get(userName);
                 if (groupNames == null) {
                 	// assume this is a local user
-                    groupNames = provider.getSharedGroupNames(new JID(userName, 
+                    groupNames = provider.getSharedGroupNames(new JID(userName,
                     		XMPPServer.getInstance().getServerInfo().getXMPPDomain(), null));
                     groupMetaCache.put(userName, groupNames);
                 }
@@ -449,7 +449,7 @@ public class GroupManager {
         }
         return new GroupCollection(groupNames);
     }
-    
+
     /**
      * Returns an unmodifiable Collection of all shared groups in the system for a given userName.
      *
@@ -471,7 +471,7 @@ public class GroupManager {
         groupNames.addAll(provider.getVisibleGroupNames(groupToCheck.getName()));
         return new GroupCollection(groupNames);
     }
-    
+
     /**
      * Returns an unmodifiable Collection of all public shared groups in the system.
      *
@@ -490,7 +490,7 @@ public class GroupManager {
         }
         return new GroupCollection(groupNames);
     }
-    
+
     /**
      * Returns an unmodifiable Collection of all groups in the system that
      * match given propValue for the specified propName.
@@ -633,7 +633,7 @@ public class GroupManager {
     public GroupProvider getProvider() {
         return provider;
     }
-    
+
     private void evictCachedUsersForGroup(Group group) {
         // Evict cached information for affected users
         for (JID user : group.getAdmins()) {
