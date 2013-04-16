@@ -20,25 +20,30 @@
 
 package org.jivesoftware.openfire.pubsub;
 
-import java.io.StringReader;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
-import org.dom4j.io.SAXReader;
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.database.DbConnectionManager.DatabaseType;
+import org.jivesoftware.openfire.cluster.ClusterManager;
+import org.jivesoftware.openfire.pubsub.cluster.FlushTask;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
+import org.jivesoftware.util.JiveGlobals;
+import org.jivesoftware.util.LinkedListNode;
 import org.jivesoftware.util.StringUtils;
+import org.jivesoftware.util.cache.CacheFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;
@@ -48,26 +53,31 @@ import org.xmpp.packet.JID;
  *
  * @author Matt Tucker
  */
-public class PubSubPersistenceManager {
+public class PubSubPersistenceManager extends BasePubSubProvider {
 
-	private static final Logger Log = LoggerFactory.getLogger(PubSubPersistenceManager.class);
+    private static final Logger log = LoggerFactory.getLogger(PubSubPersistenceManager.class);
 
-    private static final String LOAD_NON_LEAF_NODES =
+    private static final String PURGE_FOR_SIZE =
+    		"DELETE ofPubsubItem FROM ofPubsubItem LEFT JOIN " +
+			"(SELECT id FROM ofPubsubItem WHERE serviceID=? AND nodeID=? " +
+			"ORDER BY creationDate DESC LIMIT ?) AS noDelete " +
+			"ON ofPubsubItem.id = noDelete.id WHERE noDelete.id IS NULL AND " +
+			"ofPubsubItem.serviceID = ? AND nodeID = ?";
+
+	private static final String PURGE_FOR_SIZE_HSQLDB = "DELETE FROM ofPubsubItem WHERE serviceID=? AND nodeID=? AND id NOT IN "
+			+ "(SELECT id FROM ofPubsubItem WHERE serviceID=? AND nodeID=? ORDER BY creationDate DESC LIMIT ?)";
+
+	private static final String LOAD_NODES =
             "SELECT nodeID, leaf, creationDate, modificationDate, parent, deliverPayloads, " +
             "maxPayloadSize, persistItems, maxItems, notifyConfigChanges, notifyDelete, " +
             "notifyRetract, presenceBased, sendItemSubscribe, publisherModel, " +
             "subscriptionEnabled, configSubscription, accessModel, payloadType, " +
             "bodyXSLT, dataformXSLT, creator, description, language, name, " +
             "replyPolicy, associationPolicy, maxLeafNodes FROM ofPubsubNode " +
-            "WHERE serviceID=? AND leaf=0 ORDER BY nodeID";
-    private static final String LOAD_LEAF_NODES =
-            "SELECT nodeID, leaf, creationDate, modificationDate, parent, deliverPayloads, " +
-            "maxPayloadSize, persistItems, maxItems, notifyConfigChanges, notifyDelete, " +
-            "notifyRetract, presenceBased, sendItemSubscribe, publisherModel, " +
-            "subscriptionEnabled, configSubscription, accessModel, payloadType, " +
-            "bodyXSLT, dataformXSLT, creator, description, language, name, " +
-            "replyPolicy, associationPolicy, maxLeafNodes FROM ofPubsubNode " +
-            "WHERE serviceID=? AND leaf=1 ORDER BY nodeID";
+ "WHERE serviceID=?";
+
+	private static final String LOAD_NODE = LOAD_NODES + " AND nodeID=?";
+
     private static final String UPDATE_NODE =
             "UPDATE ofPubsubNode SET modificationDate=?, parent=?, deliverPayloads=?, " +
             "maxPayloadSize=?, persistItems=?, maxItems=?, " +
@@ -89,7 +99,8 @@ public class PubSubPersistenceManager {
 
     private static final String LOAD_NODES_JIDS =
             "SELECT nodeID, jid, associationType FROM ofPubsubNodeJIDs WHERE serviceID=?";
-    private static final String ADD_NODE_JIDS =
+	private static final String LOAD_NODE_JIDS = "SELECT nodeID, jid, associationType FROM ofPubsubNodeJIDs WHERE serviceID=? AND nodeID=?";
+	private static final String ADD_NODE_JIDS =
             "INSERT INTO ofPubsubNodeJIDs (serviceID, nodeID, jid, associationType) " +
             "VALUES (?,?,?,?)";
     private static final String DELETE_NODE_JIDS =
@@ -97,6 +108,7 @@ public class PubSubPersistenceManager {
 
     private static final String LOAD_NODES_GROUPS =
             "SELECT nodeID, rosterGroup FROM ofPubsubNodeGroups WHERE serviceID=?";
+	private static final String LOAD_NODE_GROUPS = "SELECT nodeID, rosterGroup FROM ofPubsubNodeGroups WHERE serviceID=? AND nodeID=?";
     private static final String ADD_NODE_GROUPS =
             "INSERT INTO ofPubsubNodeGroups (serviceID, nodeID, rosterGroup) " +
             "VALUES (?,?,?)";
@@ -106,6 +118,7 @@ public class PubSubPersistenceManager {
     private static final String LOAD_AFFILIATIONS =
             "SELECT nodeID,jid,affiliation FROM ofPubsubAffiliation WHERE serviceID=? " +
             "ORDER BY nodeID";
+	private static final String LOAD_NODE_AFFILIATIONS = "SELECT nodeID,jid,affiliation FROM ofPubsubAffiliation WHERE serviceID=? AND nodeID=?";
     private static final String ADD_AFFILIATION =
             "INSERT INTO ofPubsubAffiliation (serviceID,nodeID,jid,affiliation) VALUES (?,?,?,?)";
     private static final String UPDATE_AFFILIATION =
@@ -115,10 +128,13 @@ public class PubSubPersistenceManager {
     private static final String DELETE_AFFILIATIONS =
             "DELETE FROM ofPubsubAffiliation WHERE serviceID=? AND nodeID=?";
 
-    private static final String LOAD_SUBSCRIPTIONS =
-            "SELECT nodeID, id, jid, owner, state, deliver, digest, digest_frequency, " +
-            "expire, includeBody, showValues, subscriptionType, subscriptionDepth, " +
-            "keyword FROM ofPubsubSubscription WHERE serviceID=? ORDER BY nodeID";
+	private static final String LOAD_SUBSCRIPTIONS_BASE = "SELECT nodeID, id, jid, owner, state, deliver, digest, digest_frequency, "
+			+ "expire, includeBody, showValues, subscriptionType, subscriptionDepth, "
+			+ "keyword FROM ofPubsubSubscription WHERE serviceID=? ";
+	private static final String LOAD_NODE_SUBSCRIPTION = LOAD_SUBSCRIPTIONS_BASE + "AND nodeID=? AND id=?";
+	private static final String LOAD_NODE_SUBSCRIPTIONS = LOAD_SUBSCRIPTIONS_BASE + "AND nodeID=?";
+	private static final String LOAD_SUBSCRIPTIONS = LOAD_SUBSCRIPTIONS_BASE + "ORDER BY nodeID";
+
     private static final String ADD_SUBSCRIPTION =
             "INSERT INTO ofPubsubSubscription (serviceID, nodeID, id, jid, owner, state, " +
             "deliver, digest, digest_frequency, expire, includeBody, showValues, " +
@@ -132,13 +148,15 @@ public class PubSubPersistenceManager {
             "DELETE FROM ofPubsubSubscription WHERE serviceID=? AND nodeID=? AND id=?";
     private static final String DELETE_SUBSCRIPTIONS =
             "DELETE FROM ofPubsubSubscription WHERE serviceID=? AND nodeID=?";
-
-    private static final String LOAD_ALL_ITEMS =
-            "SELECT id,jid,creationDate,payload,nodeID FROM ofPubsubItem " +
-            "WHERE serviceID=? ORDER BY creationDate";
     private static final String LOAD_ITEMS =
             "SELECT id,jid,creationDate,payload FROM ofPubsubItem " +
-            "WHERE serviceID=? AND nodeID=? ORDER BY creationDate";
+            "WHERE serviceID=? AND nodeID=? ORDER BY creationDate DESC";
+    private static final String LOAD_ITEM =
+            "SELECT jid,creationDate,payload FROM ofPubsubItem " +
+            "WHERE serviceID=? AND nodeID=? AND id=?";
+    private static final String LOAD_LAST_ITEM =
+            "SELECT id,jid,creationDate,payload FROM ofPubsubItem " +
+            "WHERE serviceID=? AND nodeID=? ORDER BY creationDate DESC";
     private static final String ADD_ITEM =
             "INSERT INTO ofPubsubItem (serviceID,nodeID,id,jid,creationDate,payload) " +
             "VALUES (?,?,?,?,?,?)";
@@ -166,36 +184,20 @@ public class PubSubPersistenceManager {
             "accessModel, language, replyPolicy, associationPolicy, maxLeafNodes) " +
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
-    private static final int POOL_SIZE = 50; 
-    
-    /**
-     * Pool of SAX Readers. SAXReader is not thread safe so we need to have a pool of readers.
-     */
-    private static BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<SAXReader>(POOL_SIZE);
-
-    static {
-        // Initialize the pool of sax readers
-        for (int i=0; i<POOL_SIZE; i++) {
-            SAXReader xmlReader = new SAXReader();
-            xmlReader.setEncoding("UTF-8");
-            xmlReaders.add(xmlReader);
-        }
-    }
+    // formerly in PEPServiceManager
+	private final static String GET_PEP_SERVICE = "SELECT DISTINCT serviceID FROM ofPubsubNode WHERE serviceID=?";
 
     /**
-     * Creates and stores the node configuration in the database.
-     *
-     * @param service The pubsub service that is hosting the node.
-     * @param node The newly created node.
+     * {@inheritDoc}
      */
-    public static void createNode(PubSubService service, Node node) {
+    public void createNode(PubSubService service, Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
         try {
             con = DbConnectionManager.getTransactionConnection();
             pstmt = con.prepareStatement(ADD_NODE);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.setInt(3, (node.isCollectionNode() ? 0 : 1));
             pstmt.setString(4, StringUtils.dateToMillis(node.getCreationDate()));
@@ -245,10 +247,10 @@ public class PubSubPersistenceManager {
             pstmt.executeUpdate();
 
             // Save associated JIDs and roster groups
-            saveAssociatedElements(con, node, service);
+            saveAssociatedElements(con, node);
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
             abortTransaction = true;
         }
         finally {
@@ -258,12 +260,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Updates the node configuration in the database.
-     *
-     * @param service The pubsub service that is hosting the node.
-     * @param node The updated node.
+     * {@inheritDoc}
      */
-    public static void updateNode(PubSubService service, Node node) {
+    public void updateNode(PubSubService service, Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -312,29 +311,29 @@ public class PubSubPersistenceManager {
                 pstmt.setString(23, null);
                 pstmt.setInt(24, 0);
             }
-            pstmt.setString(25, service.getServiceID());
+            pstmt.setString(25, node.getService().getServiceID());
             pstmt.setString(26, encodeNodeID(node.getNodeID()));
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
 
             // Remove existing JIDs associated with the the node
             pstmt = con.prepareStatement(DELETE_NODE_JIDS);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
 
             // Remove roster groups associated with the the node being deleted
             pstmt = con.prepareStatement(DELETE_NODE_GROUPS);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.executeUpdate();
 
             // Save associated JIDs and roster groups
-            saveAssociatedElements(con, node, service);
+            saveAssociatedElements(con, node);
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
             abortTransaction = true;
         }
         finally {
@@ -343,27 +342,26 @@ public class PubSubPersistenceManager {
         }
     }
 
-    private static void saveAssociatedElements(Connection con, Node node,
-            PubSubService service) throws SQLException {
+    private static void saveAssociatedElements(Connection con, Node node) throws SQLException {
         // Add new JIDs associated with the the node
         PreparedStatement pstmt = con.prepareStatement(ADD_NODE_JIDS);
         try {
             for (JID jid : node.getContacts()) {
-                pstmt.setString(1, service.getServiceID());
+                pstmt.setString(1, node.getService().getServiceID());
                 pstmt.setString(2, encodeNodeID(node.getNodeID()));
                 pstmt.setString(3, jid.toString());
                 pstmt.setString(4, "contacts");
                 pstmt.executeUpdate();
             }
             for (JID jid : node.getReplyRooms()) {
-                pstmt.setString(1, service.getServiceID());
+                pstmt.setString(1, node.getService().getServiceID());
                 pstmt.setString(2, encodeNodeID(node.getNodeID()));
                 pstmt.setString(3, jid.toString());
                 pstmt.setString(4, "replyRooms");
                 pstmt.executeUpdate();
             }
             for (JID jid : node.getReplyTo()) {
-                pstmt.setString(1, service.getServiceID());
+                pstmt.setString(1, node.getService().getServiceID());
                 pstmt.setString(2, encodeNodeID(node.getNodeID()));
                 pstmt.setString(3, jid.toString());
                 pstmt.setString(4, "replyTo");
@@ -371,7 +369,7 @@ public class PubSubPersistenceManager {
             }
             if (node.isCollectionNode()) {
                 for (JID jid : ((CollectionNode) node).getAssociationTrusted()) {
-                    pstmt.setString(1, service.getServiceID());
+                    pstmt.setString(1, node.getService().getServiceID());
                     pstmt.setString(2, encodeNodeID(node.getNodeID()));
                     pstmt.setString(3, jid.toString());
                     pstmt.setString(4, "associationTrusted");
@@ -382,7 +380,7 @@ public class PubSubPersistenceManager {
             // Add new roster groups associated with the the node
             pstmt = con.prepareStatement(ADD_NODE_GROUPS);
             for (String groupName : node.getRosterGroupsAllowed()) {
-                pstmt.setString(1, service.getServiceID());
+                pstmt.setString(1, node.getService().getServiceID());
                 pstmt.setString(2, encodeNodeID(node.getNodeID()));
                 pstmt.setString(3, groupName);
                 pstmt.executeUpdate();
@@ -394,13 +392,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Removes the specified node from the DB.
-     *
-     * @param service The pubsub service that is hosting the node.
-     * @param node The node that is being deleted.
-     * @return true If the operation was successful.
+     * {@inheritDoc}
      */
-    public static boolean removeNode(PubSubService service, Node node) {
+    public boolean removeNode(PubSubService service, Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -408,47 +402,46 @@ public class PubSubPersistenceManager {
             con = DbConnectionManager.getTransactionConnection();
             // Remove the affiliate from the table of node affiliates
             pstmt = con.prepareStatement(DELETE_NODE);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
 
             // Remove JIDs associated with the the node being deleted
             pstmt = con.prepareStatement(DELETE_NODE_JIDS);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
 
             // Remove roster groups associated with the the node being deleted
             pstmt = con.prepareStatement(DELETE_NODE_GROUPS);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
 
             // Remove published items of the node being deleted
-            pstmt = con.prepareStatement(DELETE_ITEMS);
-            pstmt.setString(1, service.getServiceID());
-            pstmt.setString(2, encodeNodeID(node.getNodeID()));
-            pstmt.executeUpdate();
-            DbConnectionManager.closeStatement(pstmt);
+			if (node instanceof LeafNode)
+			{
+				purgeNode((LeafNode) node, con);
+			}
 
             // Remove all affiliates from the table of node affiliates
             pstmt = con.prepareStatement(DELETE_AFFILIATIONS);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
 
             // Remove users that were subscribed to the node
             pstmt = con.prepareStatement(DELETE_SUBSCRIPTIONS);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.executeUpdate();
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
             abortTransaction = true;
         }
         finally {
@@ -459,11 +452,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Loads all nodes from the database and adds them to the PubSub service.
-     *
-     * @param service the pubsub service that is hosting the nodes.
+     * {@inheritDoc}
      */
-    public static void loadNodes(PubSubService service) {
+    public void loadNodes(PubSubService service) {
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
@@ -471,25 +462,34 @@ public class PubSubPersistenceManager {
         try {
             con = DbConnectionManager.getConnection();
             // Get all non-leaf nodes (to ensure parent nodes are loaded before their children)
-            pstmt = con.prepareStatement(LOAD_NON_LEAF_NODES);
+			pstmt = con.prepareStatement(LOAD_NODES);
             pstmt.setString(1, service.getServiceID());
             rs = pstmt.executeQuery();
+
+            Map<String, String> parentMappings = new HashMap<String, String>();
+
             // Rebuild loaded non-leaf nodes
             while(rs.next()) {
-                loadNode(service, nodes, rs);
+                loadNode(service, nodes, parentMappings, rs);
             }
             DbConnectionManager.fastcloseStmt(rs, pstmt);
 
-            // Get all leaf nodes (remaining unloaded nodes)
-            pstmt = con.prepareStatement(LOAD_LEAF_NODES);
-            pstmt.setString(1, service.getServiceID());
-            rs = pstmt.executeQuery();
-            // Rebuild loaded leaf nodes
-            while(rs.next()) {
-                loadNode(service, nodes, rs);
+            if (nodes.size() == 0) {
+            	log.info("No nodes found in pubsub");
+            	return;
             }
-            DbConnectionManager.fastcloseStmt(rs, pstmt);
 
+            for (Map.Entry<String, String> entry : parentMappings.entrySet()) {
+            	Node child = nodes.get(entry.getKey());
+            	CollectionNode parent = (CollectionNode) nodes.get(entry.getValue());
+
+            	if (parent == null) {
+            		log.error("Could not find parent node " + entry.getValue() + " for node " + entry.getKey());
+            	}
+            	else {
+            		child.changeParent(parent);
+            	}
+            }
             // Get JIDs associated with all nodes
             pstmt = con.prepareStatement(LOAD_NODES_JIDS);
             pstmt.setString(1, service.getServiceID());
@@ -526,22 +526,12 @@ public class PubSubPersistenceManager {
             rs = pstmt.executeQuery();
             // Add to each node the correspondiding subscriptions
             while(rs.next()) {
-                loadSubscriptions(service, nodes, rs);
+                loadSubscriptions(nodes, rs);
             }
             DbConnectionManager.fastcloseStmt(rs, pstmt);
-
-            // TODO We may need to optimize memory consumption and load items on-demand
-            // Load published items of all nodes
-            pstmt = con.prepareStatement(LOAD_ALL_ITEMS);
-            pstmt.setString(1, service.getServiceID());
-            rs = pstmt.executeQuery();
-            // Add to each node the correspondiding subscriptions
-            while(rs.next()) {
-                loadItems(nodes, rs);
-            }
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
             DbConnectionManager.closeConnection(rs, pstmt, con);
@@ -557,32 +547,137 @@ public class PubSubPersistenceManager {
         }
     }
 
-    private static void loadNode(PubSubService service, Map<String, Node> loadedNodes,
-            ResultSet rs) {
+	/**
+	 * Loads all nodes from the database and adds them to the PubSub service.
+     *
+	 * @param service
+	 *            the pubsub service that is hosting the nodes.
+	 */
+	public void loadNode(PubSubService service, String nodeId)
+	{
+		Connection con = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		Map<String, Node> nodes = new HashMap<String, Node>();
+		try
+		{
+			con = DbConnectionManager.getConnection();
+			// Get all non-leaf nodes (to ensure parent nodes are loaded before
+			// their children)
+			pstmt = con.prepareStatement(LOAD_NODE);
+			pstmt.setString(1, service.getServiceID());
+			pstmt.setString(2, nodeId);
+			rs = pstmt.executeQuery();
+			Map<String, String> parentMapping = new HashMap<String, String>();
+
+			// Rebuild loaded non-leaf nodes
+			if (rs.next())
+			{
+				loadNode(service, nodes, parentMapping, rs);
+			}
+			DbConnectionManager.fastcloseStmt(rs, pstmt);
+			String parentId = parentMapping.get(nodeId);
+
+			if (parentId != null) {
+				CollectionNode parent = (CollectionNode) service.getNode(parentId);
+
+				if (parent == null) {
+            		log.error("Could not find parent node " + parentId + " for node " + nodeId);
+				}
+				else {
+					nodes.get(nodeId).changeParent(parent);
+				}
+			}
+
+			// Get JIDs associated with all nodes
+			pstmt = con.prepareStatement(LOAD_NODE_JIDS);
+			pstmt.setString(1, service.getServiceID());
+			pstmt.setString(2, nodeId);
+			rs = pstmt.executeQuery();
+			// Add to each node the associated JIDs
+			while (rs.next())
+			{
+				loadAssociatedJIDs(nodes, rs);
+			}
+			DbConnectionManager.fastcloseStmt(rs, pstmt);
+
+			// Get roster groups associated with all nodes
+			pstmt = con.prepareStatement(LOAD_NODE_GROUPS);
+			pstmt.setString(1, service.getServiceID());
+			pstmt.setString(2, nodeId);
+			rs = pstmt.executeQuery();
+			// Add to each node the associated Groups
+			while (rs.next())
+			{
+				loadAssociatedGroups(nodes, rs);
+			}
+			DbConnectionManager.fastcloseStmt(rs, pstmt);
+
+			// Get affiliations of all nodes
+			pstmt = con.prepareStatement(LOAD_NODE_AFFILIATIONS);
+			pstmt.setString(1, service.getServiceID());
+			pstmt.setString(2, nodeId);
+			rs = pstmt.executeQuery();
+			// Add to each node the corresponding affiliates
+			while (rs.next())
+			{
+				loadAffiliations(nodes, rs);
+			}
+			DbConnectionManager.fastcloseStmt(rs, pstmt);
+
+			// Get subscriptions to all nodes
+			pstmt = con.prepareStatement(LOAD_NODE_SUBSCRIPTIONS);
+			pstmt.setString(1, service.getServiceID());
+			pstmt.setString(2, nodeId);
+			rs = pstmt.executeQuery();
+			// Add to each node the corresponding subscriptions
+			while (rs.next())
+			{
+				loadSubscriptions(nodes, rs);
+			}
+			DbConnectionManager.fastcloseStmt(rs, pstmt);
+		}
+		catch (SQLException sqle)
+		{
+			log.error(sqle.getMessage(), sqle);
+		}
+		finally
+		{
+			DbConnectionManager.closeConnection(rs, pstmt, con);
+		}
+
+		for (Node node : nodes.values())
+		{
+			// Set now that the node is persistent in the database. Note: We
+			// need to
+			// set this now since otherwise the node's affiliations will be
+			// saved to the database
+			// "again" while adding them to the node!
+			node.setSavedToDB(true);
+			// Add the node to the service
+			service.addNode(node);
+		}
+	}
+
+    private static void loadNode(PubSubService service, Map<String, Node> loadedNodes, Map<String, String> parentMappings, ResultSet rs) {
         Node node;
         try {
             String nodeID = decodeNodeID(rs.getString(1));
             boolean leaf = rs.getInt(2) == 1;
             String parent = decodeNodeID(rs.getString(5));
             JID creator = new JID(rs.getString(22));
-            CollectionNode parentNode = null;
+
             if (parent != null) {
-                // Check if the parent has already been loaded
-                parentNode = (CollectionNode) loadedNodes.get(parent);
-                if (parentNode == null) {
-                    // Parent is not in memory so try to load it
-                    Log.warn("Node not loaded due to missing parent. NodeID: " + nodeID);
-                    return;
-                }
+            	parentMappings.put(nodeID, parent);
             }
 
             if (leaf) {
                 // Retrieving a leaf node
-                node = new LeafNode(service, parentNode, nodeID, creator);
+                node = new LeafNode(service, null, nodeID, creator);
             }
             else {
                 // Retrieving a collection node
-                node = new CollectionNode(service, parentNode, nodeID, creator);
+                node = new CollectionNode(service, null, nodeID, creator);
             }
             node.setCreationDate(new Date(Long.parseLong(rs.getString(3).trim())));
             node.setModificationDate(new Date(Long.parseLong(rs.getString(4).trim())));
@@ -620,7 +715,7 @@ public class PubSubPersistenceManager {
             loadedNodes.put(node.getNodeID(), node);
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
     }
 
@@ -629,7 +724,7 @@ public class PubSubPersistenceManager {
             String nodeID = decodeNodeID(rs.getString(1));
             Node node = nodes.get(nodeID);
             if (node == null) {
-                Log.warn("JID associated to a non-existent node: " + nodeID);
+                log.warn("JID associated to a non-existent node: " + nodeID);
                 return;
             }
             JID jid = new JID(rs.getString(2));
@@ -648,7 +743,7 @@ public class PubSubPersistenceManager {
             }
         }
         catch (Exception ex) {
-            Log.error(ex.getMessage(), ex);
+            log.error(ex.getMessage(), ex);
         }
     }
 
@@ -657,13 +752,13 @@ public class PubSubPersistenceManager {
             String nodeID = decodeNodeID(rs.getString(1));
             Node node = nodes.get(nodeID);
             if (node == null) {
-                Log.warn("Roster Group associated to a non-existent node: " + nodeID);
+                log.warn("Roster Group associated to a non-existent node: " + nodeID);
                 return;
             }
             node.addAllowedRosterGroup(rs.getString(2));
         }
         catch (SQLException ex) {
-            Log.error(ex.getMessage(), ex);
+            log.error(ex.getMessage(), ex);
         }
     }
 
@@ -672,7 +767,7 @@ public class PubSubPersistenceManager {
             String nodeID = decodeNodeID(rs.getString(1));
             Node node = nodes.get(nodeID);
             if (node == null) {
-                Log.warn("Affiliations found for a non-existent node: " + nodeID);
+                log.warn("Affiliations found for a non-existent node: " + nodeID);
                 return;
             }
             NodeAffiliate affiliate = new NodeAffiliate(node, new JID(rs.getString(2)));
@@ -680,30 +775,63 @@ public class PubSubPersistenceManager {
             node.addAffiliate(affiliate);
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
     }
 
-    private static void loadSubscriptions(PubSubService service, Map<String, Node> nodes,
-            ResultSet rs) {
+	public void loadSubscription(PubSubService service, Node node, String subId)
+	{
+		Connection con = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		Map<String, Node> nodes = new HashMap<String, Node>();
+		nodes.put(node.getNodeID(), node);
+
+		try
+		{
+			con = DbConnectionManager.getConnection();
+
+			// Get subscriptions to all nodes
+			pstmt = con.prepareStatement(LOAD_NODE_SUBSCRIPTION);
+			pstmt.setString(1, service.getServiceID());
+			pstmt.setString(2, node.getNodeID());
+			pstmt.setString(3, subId);
+			rs = pstmt.executeQuery();
+
+			// Add to each node the corresponding subscription
+			if (rs.next())
+			{
+				loadSubscriptions(nodes, rs);
+			}
+		}
+		catch (SQLException sqle)
+		{
+			log.error(sqle.getMessage(), sqle);
+		}
+		finally
+		{
+			DbConnectionManager.closeConnection(rs, pstmt, con);
+		}
+	}
+
+    private static void loadSubscriptions(Map<String, Node> nodes, ResultSet rs) {
         try {
             String nodeID = decodeNodeID(rs.getString(1));
             Node node = nodes.get(nodeID);
             if (node == null) {
-                Log.warn("Subscription found for a non-existent node: " + nodeID);
+                log.warn("Subscription found for a non-existent node: " + nodeID);
                 return;
             }
             String subID = rs.getString(2);
             JID subscriber = new JID(rs.getString(3));
             JID owner = new JID(rs.getString(4));
             if (node.getAffiliate(owner) == null) {
-                Log.warn("Subscription found for a non-existent affiliate: " + owner +
+                log.warn("Subscription found for a non-existent affiliate: " + owner +
                         " in node: " + nodeID);
                 return;
             }
             NodeSubscription.State state = NodeSubscription.State.valueOf(rs.getString(5));
-            NodeSubscription subscription =
-                    new NodeSubscription(service, node, owner, subscriber, state, subID);
+			NodeSubscription subscription = new NodeSubscription(node.getService(), node, owner, subscriber, state, subID);
             subscription.setShouldDeliverNotifications(rs.getInt(6) == 1);
             subscription.setUsingDigest(rs.getInt(7) == 1);
             subscription.setDigestFrequency(rs.getInt(8));
@@ -720,55 +848,14 @@ public class PubSubPersistenceManager {
             node.addSubscription(subscription);
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-    }
-
-    private static void loadItems(Map<String, Node> nodes, ResultSet rs) {
-        SAXReader xmlReader = null;
-        try {
-            // Get a sax reader from the pool
-            xmlReader = xmlReaders.take();
-
-            String nodeID = decodeNodeID(rs.getString(5));
-            LeafNode node = (LeafNode) nodes.get(nodeID);
-            if (node == null) {
-                Log.warn("Published Item found for a non-existent node: " + nodeID);
-                return;
-            }
-            String itemID = rs.getString(1);
-            JID publisher = new JID(rs.getString(2));
-            Date creationDate = new Date(Long.parseLong(rs.getString(3).trim()));
-            // Create the item
-            PublishedItem item = new PublishedItem(node, publisher, itemID, creationDate);
-            // Add the extra fields to the published item
-            if (rs.getString(4) != null) {
-                item.setPayload(
-                        xmlReader.read(new StringReader(rs.getString(4))).getRootElement());
-            }
-            // Add the published item to the node
-            node.addPublishedItem(item);
-        }
-        catch (Exception sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            // Return the sax reader to the pool
-            if (xmlReader != null) {
-                xmlReaders.add(xmlReader);
-            }
+            log.error(sqle.getMessage(), sqle);
         }
     }
 
     /**
-     * Update the DB with the new affiliation of the user in the node.
-     *
-     * @param service   The pubsub service that is hosting the node.
-     * @param node      The node where the affiliation of the user was updated.
-     * @param affiliate The new affiliation of the user in the node.
-     * @param create    True if this is a new affiliate.
+     * {@inheritDoc}
      */
-    public static void saveAffiliation(PubSubService service, Node node, NodeAffiliate affiliate,
+    public void saveAffiliation(PubSubService service, Node node, NodeAffiliate affiliate,
             boolean create) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -777,7 +864,7 @@ public class PubSubPersistenceManager {
             if (create) {
                 // Add the user to the generic affiliations table
                 pstmt = con.prepareStatement(ADD_AFFILIATION);
-                pstmt.setString(1, service.getServiceID());
+                pstmt.setString(1, node.getService().getServiceID());
                 pstmt.setString(2, encodeNodeID(node.getNodeID()));
                 pstmt.setString(3, affiliate.getJID().toString());
                 pstmt.setString(4, affiliate.getAffiliation().name());
@@ -787,14 +874,14 @@ public class PubSubPersistenceManager {
                 // Update the affiliate's data in the backend store
                 pstmt = con.prepareStatement(UPDATE_AFFILIATION);
                 pstmt.setString(1, affiliate.getAffiliation().name());
-                pstmt.setString(2, service.getServiceID());
+                pstmt.setString(2, node.getService().getServiceID());
                 pstmt.setString(3, encodeNodeID(node.getNodeID()));
                 pstmt.setString(4, affiliate.getJID().toString());
                 pstmt.executeUpdate();
             }
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
             DbConnectionManager.closeConnection(pstmt, con);
@@ -802,13 +889,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Removes the affiliation and subsription state of the user from the DB.
-     *
-     * @param service   The pubsub service that is hosting the node.
-     * @param node      The node where the affiliation of the user was updated.
-     * @param affiliate The existing affiliation and subsription state of the user in the node.
+     * {@inheritDoc}
      */
-    public static void removeAffiliation(PubSubService service, Node node,
+    public void removeAffiliation(PubSubService service, Node node,
             NodeAffiliate affiliate) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -816,13 +899,13 @@ public class PubSubPersistenceManager {
             con = DbConnectionManager.getConnection();
             // Remove the affiliate from the table of node affiliates
             pstmt = con.prepareStatement(DELETE_AFFILIATION);
-            pstmt.setString(1, service.getServiceID());
+            pstmt.setString(1, node.getService().getServiceID());
             pstmt.setString(2, encodeNodeID(node.getNodeID()));
             pstmt.setString(3, affiliate.getJID().toString());
             pstmt.executeUpdate();
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
             DbConnectionManager.closeConnection(pstmt, con);
@@ -830,14 +913,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Updates the DB with the new subsription of the user to the node.
-     *
-     * @param service   The pubsub service that is hosting the node.
-     * @param node      The node where the user has subscribed to.
-     * @param subscription The new subscription of the user to the node.
-     * @param create    True if this is a new affiliate.
+     * {@inheritDoc}
      */
-    public static void saveSubscription(PubSubService service, Node node,
+    public void saveSubscription(PubSubService service, Node node,
             NodeSubscription subscription, boolean create) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -846,7 +924,7 @@ public class PubSubPersistenceManager {
             if (create) {
                 // Add the subscription of the user to the database
                 pstmt = con.prepareStatement(ADD_SUBSCRIPTION);
-                pstmt.setString(1, service.getServiceID());
+                pstmt.setString(1, node.getService().getServiceID());
                 pstmt.setString(2, encodeNodeID(node.getNodeID()));
                 pstmt.setString(3, subscription.getID());
                 pstmt.setString(4, subscription.getJID().toString());
@@ -875,7 +953,7 @@ public class PubSubPersistenceManager {
                 if (NodeSubscription.State.none == subscription.getState()) {
                     // Remove the subscription of the user from the table
                     pstmt = con.prepareStatement(DELETE_SUBSCRIPTION);
-                    pstmt.setString(1, service.getServiceID());
+                    pstmt.setString(1, node.getService().getServiceID());
                     pstmt.setString(2, encodeNodeID(node.getNodeID()));
                     pstmt.setString(2, subscription.getID());
                     pstmt.executeUpdate();
@@ -900,7 +978,7 @@ public class PubSubPersistenceManager {
                     pstmt.setString(9, subscription.getType().name());
                     pstmt.setInt(10, subscription.getDepth());
                     pstmt.setString(11, subscription.getKeyword());
-                    pstmt.setString(12, service.getServiceID());
+                    pstmt.setString(12, node.getService().getServiceID());
                     pstmt.setString(13, encodeNodeID(node.getNodeID()));
                     pstmt.setString(14, subscription.getID());
                     pstmt.executeUpdate();
@@ -908,7 +986,7 @@ public class PubSubPersistenceManager {
             }
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
             DbConnectionManager.closeConnection(pstmt, con);
@@ -916,13 +994,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Removes the subscription of the user from the DB.
-     *
-     * @param service     The pubsub service that is hosting the node.
-     * @param node        The node where the user was subscribed to.
-     * @param subscription The existing subsription of the user to the node.
+     * {@inheritDoc}
      */
-    public static void removeSubscription(PubSubService service, Node node,
+    public void removeSubscription(PubSubService service, Node node,
             NodeSubscription subscription) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -930,13 +1004,13 @@ public class PubSubPersistenceManager {
             con = DbConnectionManager.getConnection();
             // Remove the affiliate from the table of node affiliates
             pstmt = con.prepareStatement(DELETE_SUBSCRIPTION);
-            pstmt.setString(1, service.getServiceID());
-            pstmt.setString(2, encodeNodeID(node.getNodeID()));
+            pstmt.setString(1, subscription.getNode().getService().getServiceID());
+            pstmt.setString(2, encodeNodeID(subscription.getNode().getNodeID()));
             pstmt.setString(3, subscription.getID());
             pstmt.executeUpdate();
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
             DbConnectionManager.closeConnection(pstmt, con);
@@ -944,128 +1018,105 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Loads and adds the published items to the specified node.
-     *
-     * @param service the pubsub service that is hosting the node.
-     * @param node the leaf node to load its published items.
+     * Flush the cache of items to be persisted and deleted.
+     * @param sendToCluster If true, delegate to cluster members, otherwise local only
      */
-    public static void loadItems(PubSubService service, LeafNode node) {
-        Connection con = null;
+    @Override
+	public void flushPendingItems(boolean sendToCluster)
+    {
+		Connection con = null;
+		boolean rollback = false;
+
+		try
+		{
+			con = DbConnectionManager.getTransactionConnection();
+			flushPendingItems(sendToCluster, con);
+		}
+		catch (Exception e)
+		{
+			log.error("Failed to flush pending items", e);
+			rollback = true;
+		}
+		finally
+		{
+			DbConnectionManager.closeTransactionConnection(con, rollback);
+		}
+	}
+
+	private static void flushPendingItems(boolean sendToCluster, Connection con) throws SQLException
+	{
+        if (sendToCluster) {
+            CacheFactory.doSynchronousClusterTask(new FlushTask(), false);
+        }
+
+        LinkedListNode<PublishedItem> addItem = getFirstToAdd();
+        LinkedListNode<PublishedItem> delItem = getFirstToDelete();
+        LinkedListNode<PublishedItem> addLast = getLastToAdd();
+        LinkedListNode<PublishedItem> delLast = getLastToDelete();
+
+        if (addItem == null && delItem == null) {
+        	return;	 // nothing to do for this cluster member
+        }
+
+        movePendingToAdd();
+
         PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        SAXReader xmlReader = null;
-        try {
-            // Get a sax reader from the pool
-            xmlReader = xmlReaders.take();
-            con = DbConnectionManager.getConnection();
-            // Get published items of the specified node
-            pstmt = con.prepareStatement(LOAD_ITEMS);
-            pstmt.setString(1, service.getServiceID());
-            pstmt.setString(2, encodeNodeID(node.getNodeID()));
-            rs = pstmt.executeQuery();
-            // Rebuild loaded published items
-            while(rs.next()) {
-                String itemID = rs.getString(1);
-                JID publisher = new JID(rs.getString(2));
-                Date creationDate = new Date(Long.parseLong(rs.getString(3).trim()));
-                // Create the item
-                PublishedItem item = new PublishedItem(node, publisher, itemID, creationDate);
-                // Add the extra fields to the published item
-                if (rs.getString(4) != null) {
-                    item.setPayload(
-                            xmlReader.read(new StringReader(rs.getString(4))).getRootElement());
+
+        // delete first (to remove possible duplicates), then add new items
+        if (delItem != null) {
+			try {
+                LinkedListNode<PublishedItem> delHead = delLast.next;
+				pstmt = con.prepareStatement(DELETE_ITEM);
+
+                while (delItem != delHead)
+                {
+                	PublishedItem item = delItem.object;
+                    pstmt.setString(1, item.getNode().getService().getServiceID());
+                    pstmt.setString(2, encodeNodeID(item.getNode().getNodeID()));
+                    pstmt.setString(3, item.getID());
+                    pstmt.addBatch();
+
+                    delItem = delItem.next;
                 }
-                // Add the published item to the node
-                node.addPublishedItem(item);
+				pstmt.executeBatch();
             }
+			finally
+			{
+				DbConnectionManager.closeStatement(pstmt);
+	        }
         }
-        catch (Exception sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            // Return the sax reader to the pool
-            if (xmlReader != null) {
-                xmlReaders.add(xmlReader);
+
+        if (addItem != null) {
+    		try {
+                LinkedListNode<PublishedItem> addHead = addLast.next;
+				pstmt = con.prepareStatement(ADD_ITEM);
+
+                while (addItem != addHead)
+                {
+                	PublishedItem item = addItem.object;
+                    pstmt.setString(1, item.getNode().getService().getServiceID());
+                    pstmt.setString(2, encodeNodeID(item.getNodeID()));
+                    pstmt.setString(3, item.getID());
+                    pstmt.setString(4, item.getPublisher().toString());
+                    pstmt.setString(5, StringUtils.dateToMillis(item.getCreationDate()));
+                    pstmt.setString(6, item.getPayloadXML());
+					pstmt.addBatch();
+
+                    addItem = addItem.next;
+                }
+				pstmt.executeBatch();
             }
-            DbConnectionManager.closeConnection(rs, pstmt, con);
+			finally
+			{
+				DbConnectionManager.closeStatement(pstmt);
+	        }
         }
     }
 
     /**
-     * Creates and stores the published item in the database.
-     *
-     * @param service the pubsub service that is hosting the node.
-     * @param item The published item to save.
-     * @return true if the item was successfully saved to the database.
+     * {@inheritDoc}
      */
-    public static boolean createPublishedItem(PubSubService service, PublishedItem item) {
-        boolean success = false;
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            // Remove the published item from the database
-            pstmt = con.prepareStatement(ADD_ITEM);
-            pstmt.setString(1, service.getServiceID());
-            pstmt.setString(2, encodeNodeID(item.getNode().getNodeID()));
-            pstmt.setString(3, item.getID());
-            pstmt.setString(4, item.getPublisher().toString());
-            pstmt.setString(5, StringUtils.dateToMillis(item.getCreationDate()));
-            pstmt.setString(6, item.getPayloadXML());
-            pstmt.executeUpdate();
-            // Set that the item was successfully saved to the database
-            success = true;
-        }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-        return success;
-    }
-
-    /**
-     * Removes the specified published item from the DB.
-     *
-     * @param service the pubsub service that is hosting the node.
-     * @param item The published item to delete.
-     * @return true if the item was successfully deleted from the database.
-     */
-    public static boolean removePublishedItem(PubSubService service, PublishedItem item) {
-        boolean success = false;
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            // Remove the published item from the database
-            pstmt = con.prepareStatement(DELETE_ITEM);
-            pstmt.setString(1, service.getServiceID());
-            pstmt.setString(2, encodeNodeID(item.getNode().getNodeID()));
-            pstmt.setString(3, item.getID());
-            pstmt.executeUpdate();
-            // Set that the item was successfully deleted from the database
-            success = true;
-        }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-        return success;
-    }
-
-    /**
-     * Loads from the database the default node configuration for the specified node type
-     * and pubsub service.
-     *
-     * @param service the default node configuration used by this pubsub service.
-     * @param isLeafType true if loading default configuration for leaf nodes.
-     * @return the loaded default node configuration for the specified node type and service
-     *         or <tt>null</tt> if none was found.
-     */
-    public static DefaultNodeConfiguration loadDefaultConfiguration(PubSubService service,
+    public DefaultNodeConfiguration loadDefaultConfiguration(PubSubService service,
             boolean isLeafType) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1103,7 +1154,7 @@ public class PubSubPersistenceManager {
             }
         }
         catch (Exception sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
             DbConnectionManager.closeConnection(rs, pstmt, con);
@@ -1112,12 +1163,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Creates a new default node configuration for the specified service.
-     *
-     * @param service the default node configuration used by this pubsub service.
-     * @param config the default node configuration to create in the database.
+     * {@inheritDoc}
      */
-    public static void createDefaultConfiguration(PubSubService service,
+    public void createDefaultConfiguration(PubSubService service,
             DefaultNodeConfiguration config) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1150,7 +1198,7 @@ public class PubSubPersistenceManager {
             pstmt.executeUpdate();
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
             DbConnectionManager.closeConnection(pstmt, con);
@@ -1158,12 +1206,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Updates the default node configuration for the specified service.
-     *
-     * @param service the default node configuration used by this pubsub service.
-     * @param config the default node configuration to update in the database.
+     * {@inheritDoc}
      */
-    public static void updateDefaultConfiguration(PubSubService service,
+    public void updateDefaultConfiguration(PubSubService service,
             DefaultNodeConfiguration config) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1196,146 +1241,207 @@ public class PubSubPersistenceManager {
             pstmt.executeUpdate();
         }
         catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
             DbConnectionManager.closeConnection(pstmt, con);
         }
     }
 
-    /*public static Node loadNode(PubSubService service, String nodeID) {
-        Connection con = null;
-        Node node = null;
-        try {
+    /**
+     * Fetches all the results for the specified node, limited by {@link LeafNode#getMaxPublishedItems()}.
+     *
+     * @param node the leaf node to load its published items.
+     */
+    public List<PublishedItem> getPublishedItems(LeafNode node, int maxRows) {
+    	safeFlushPendingItems();
+
+    	Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        int max = getMaxRowsFetch();
+        int maxPublished = node.getMaxPublishedItems();
+
+        // Limit the max rows until a solution is in place with Result Set Management
+        if (maxRows != -1) {
+			max = maxPublished == -1 ? Math.min(maxRows, getMaxRowsFetch()) :  Math.min(maxRows, maxPublished);
+		} else if (maxPublished != -1) {
+			max = Math.min(getMaxRowsFetch(), maxPublished);
+		}
+
+        // We don't know how many items are in the db, so we will start with an allocation of 500
+		java.util.LinkedList<PublishedItem> results = new java.util.LinkedList<PublishedItem>();
+		boolean descending = JiveGlobals.getBooleanProperty("xmpp.pubsub.order.descending", false);
+
+		try
+		{
             con = DbConnectionManager.getConnection();
-            node = loadNode(service, nodeID, con);
+            // Get published items of the specified node
+            pstmt = con.prepareStatement(LOAD_ITEMS);
+            pstmt.setMaxRows(max);
+            pstmt.setString(1, node.getService().getServiceID());
+            pstmt.setString(2, encodeNodeID(node.getNodeID()));
+            rs = pstmt.executeQuery();
+            int counter = 0;
+
+            // Rebuild loaded published items
+            while(rs.next() && (counter < max)) {
+                String itemID = rs.getString(1);
+                JID publisher = new JID(rs.getString(2));
+                Date creationDate = new Date(Long.parseLong(rs.getString(3).trim()));
+                // Create the item
+                PublishedItem item = new PublishedItem(node, publisher, itemID, creationDate);
+                // Add the extra fields to the published item
+                if (rs.getString(4) != null) {
+                	item.setPayloadXML(rs.getString(4));
+                }
+                // Add the published item to the node
+				if (descending) {
+					results.add(item);
+				} else {
+					results.addFirst(item);
+				}
+                counter++;
+            }
         }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+        catch (Exception sqle) {
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
-            try { if (con != null) con:close(); }
-            catch (Exception e) { Log.error(e.getMessage(), e); }
+            DbConnectionManager.closeConnection(rs, pstmt, con);
         }
-        return node;
+
+        if (results.size() == 0) {
+			return Collections.emptyList();
+		}
+
+        return results;
     }
 
-    private static Node loadNode(PubSubService service, String nodeID, Connection con) {
-        Node node = null;
+    /**
+     * Fetches the last published item for the specified node.
+     *
+     * @param node the leaf node to load its last published items.
+     */
+    public PublishedItem getLastPublishedItem(LeafNode node) {
+    	safeFlushPendingItems();
+
+        Connection con = null;
         PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        PublishedItem item = null;
+
         try {
-            pstmt = con.prepareStatement(LOAD_NODE);
-            pstmt.setString(1, encodeNodeID(nodeID));
-            ResultSet rs = pstmt.executeQuery();
-            if (!rs.next()) {
-                // No node was found for the specified nodeID so return null
-                return null;
-            }
-            boolean leaf = rs.getInt(1) == 1;
-            String parent = decodeNodeID(rs.getString(4));
-            JID creator = new JID(rs.getString(20));
-            CollectionNode parentNode = null;
-            if (parent != null) {
-                // Check if the parent has already been loaded
-                parentNode = (CollectionNode) service.getNode(parent);
-                if (parentNode == null) {
-                    // Parent is not in memory so try to load it
-                    synchronized (parent.intern()) {
-                        // Check again if parent has not been already loaded (concurrency issues)
-                        parentNode = (CollectionNode) service.getNode(parent);
-                        if (parentNode == null) {
-                            // Parent was never loaded so load it from the database now
-                            parentNode = (CollectionNode) loadNode(service, parent, con);
-                        }
-                    }
+            con = DbConnectionManager.getConnection();
+            // Get published items of the specified node
+            pstmt = con.prepareStatement(LOAD_LAST_ITEM);
+            pstmt.setFetchSize(1);
+            pstmt.setMaxRows(1);
+            pstmt.setString(1, node.getService().getServiceID());
+            pstmt.setString(2, encodeNodeID(node.getNodeID()));
+            rs = pstmt.executeQuery();
+            // Rebuild loaded published items
+            if (rs.next()) {
+                String itemID = rs.getString(1);
+                JID publisher = new JID(rs.getString(2));
+                Date creationDate = new Date(Long.parseLong(rs.getString(3).trim()));
+                // Create the item
+                item = new PublishedItem(node, publisher, itemID, creationDate);
+                // Add the extra fields to the published item
+                if (rs.getString(4) != null) {
+                	item.setPayloadXML(rs.getString(4));
                 }
             }
-
-            if (leaf) {
-                // Retrieving a leaf node
-                node = new LeafNode(parentNode, nodeID, creator);
-            }
-            else {
-                // Retrieving a collection node
-                node = new CollectionNode(parentNode, nodeID, creator);
-            }
-            node.setCreationDate(new Date(Long.parseLong(rs.getString(2).trim())));
-            node.setModificationDate(new Date(Long.parseLong(rs.getString(3).trim())));
-            node.setPayloadDelivered(rs.getInt(5) == 1);
-            node.setMaxPayloadSize(rs.getInt(6));
-            node.setPersistPublishedItems(rs.getInt(7) == 1);
-            node.setMaxPublishedItems(rs.getInt(8));
-            node.setNotifiedOfConfigChanges(rs.getInt(9) == 1);
-            node.setNotifiedOfDelete(rs.getInt(10) == 1);
-            node.setNotifiedOfRetract(rs.getInt(11) == 1);
-            node.setPresenceBasedDelivery(rs.getInt(12) == 1);
-            node.setSendItemSubscribe(rs.getInt(13) == 1);
-            node.setPublisherModel(Node.PublisherModel.valueOf(rs.getString(14)));
-            node.setSubscriptionEnabled(rs.getInt(15) == 1);
-            node.setAccessModel(Node.AccessModel.valueOf(rs.getString(16)));
-            node.setPayloadType(rs.getString(17));
-            node.setBodyXSLT(rs.getString(18));
-            node.setDataformXSLT(rs.getString(19));
-            node.setDescription(rs.getString(21));
-            node.setLanguage(rs.getString(22));
-            node.setName(rs.getString(23));
-            rs:close();
-            pstmt:close();
-
-            pstmt = con.prepareStatement(LOAD_HISTORY);
-            // Recreate the history until two days ago
-            long from = System.currentTimeMillis() - (86400000 * 2);
-            pstmt.setString(1, StringUtils.dateToMillis(new Date(from)));
-            pstmt.setLong(2, room.getID());
-            rs = pstmt.executeQuery();
-            while (rs.next()) {
-                String senderJID = rs.getString(1);
-                String nickname = rs.getString(2);
-                Date sentDate = new Date(Long.parseLong(rs.getString(3).trim()));
-                String subject = rs.getString(4);
-                String body = rs.getString(5);
-                // Recreate the history only for the rooms that have the conversation logging
-                // enabled
-                if (room.isLogEnabled()) {
-                    room.getRoomHistory().addOldMessage(senderJID, nickname, sentDate, subject,
-                            body);
-                }
-            }
-            rs:close();
-            pstmt:close();
-
-            pstmt = con.prepareStatement(LOAD_NODE_AFFILIATIONS);
-            pstmt.setString(1, encodeNodeID(node.getNodeID()));
-            rs = pstmt.executeQuery();
-            while (rs.next()) {
-                NodeAffiliate affiliate = new NodeAffiliate(new JID(rs.getString(1)));
-                affiliate.setAffiliation(NodeAffiliate.Affiliation.valueOf(rs.getString(2)));
-                affiliate.setSubscription(NodeAffiliate.State.valueOf(rs.getString(3)));
-                node.addAffiliate(affiliate);
-            }
-            rs:close();
-
-            // Set now that the room's configuration is updated in the database. Note: We need to
-            // set this now since otherwise the room's affiliations will be saved to the database
-            // "again" while adding them to the room!
-            node.setSavedToDB(true);
-
-            // Add the retrieved node to the pubsub service
-            service.addChildNode(node);
         }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
+        catch (Exception sqle) {
+            log.error(sqle.getMessage(), sqle);
         }
         finally {
-            try { if (pstmt != null) pstmt:close(); }
-            catch (Exception e) { Log.error(e.getMessage(), e); }
-            try { if (con != null) con:close(); }
-            catch (Exception e) { Log.error(e.getMessage(), e); }
+            DbConnectionManager.closeConnection(rs, pstmt, con);
         }
-        return node;
-    }*/
+        return item;
+    }
 
-    private static String encodeWithComma(Collection<String> strings) {
+    @Override
+	public PublishedItem loadItem(LeafNode node, String itemID) {
+    	PublishedItem result = null;
+
+    	flushPendingItems();
+
+		// fetch item from DB
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            con = DbConnectionManager.getConnection();
+            pstmt = con.prepareStatement(LOAD_ITEM);
+            pstmt.setString(1, node.getService().getServiceID());
+            pstmt.setString(2, node.getNodeID());
+            pstmt.setString(3, itemID);
+            rs = pstmt.executeQuery();
+
+            // Add to each node the corresponding subscriptions
+            if (rs.next()) {
+                JID publisher = new JID(rs.getString(1));
+                Date creationDate = new Date(Long.parseLong(rs.getString(2).trim()));
+                // Create the item
+                result = new PublishedItem(node, publisher, itemID, creationDate);
+                // Add the extra fields to the published item
+                if (rs.getString(3) != null) {
+                	result.setPayloadXML(rs.getString(3));
+                }
+        		log.debug("Loaded item into cache from DB");
+            }
+        } catch (Exception exc) {
+            log.error(exc.getMessage(), exc);
+        } finally {
+            DbConnectionManager.closeConnection(pstmt, con);
+        }
+
+        return result;
+    }
+
+	@Override
+	protected boolean purgeNodeFromDB(LeafNode leafNode) {
+		Connection con = null;
+		boolean rollback = false;
+
+		try {
+			con = DbConnectionManager.getTransactionConnection();
+
+			purgeNode(leafNode, con);
+		} catch (SQLException exc) {
+			log.error(exc.getMessage(), exc);
+			rollback = true;
+		} finally {
+			DbConnectionManager.closeTransactionConnection(con, rollback);
+		}
+
+		return rollback;
+	}
+
+	private static void purgeNode(LeafNode leafNode, Connection con) throws SQLException
+	{
+		flushPendingItems(ClusterManager.isClusteringEnabled(), con);
+        // Remove published items of the node being deleted
+        PreparedStatement pstmt = null;
+
+		try
+		{
+            pstmt = con.prepareStatement(DELETE_ITEMS);
+            pstmt.setString(1, leafNode.getService().getServiceID());
+            pstmt.setString(2, encodeNodeID(leafNode.getNodeID()));
+            pstmt.executeUpdate();
+		}
+		finally
+		{
+			DbConnectionManager.closeStatement(pstmt);
+		}
+
+		evictFromCache(leafNode);
+	}
+
+	private static String encodeWithComma(Collection<String> strings) {
         StringBuilder sb = new StringBuilder(90);
         for (String group : strings) {
             sb.append(group).append(",");
@@ -1376,4 +1482,124 @@ public class PubSubPersistenceManager {
         }
         return nodeID;
     }
+
+    /**
+     * Purges all items from the database that exceed the defined item count on
+     * all nodes.
+     */
+    @Override
+	protected void purgeItems()
+    {
+    	String persistentNodeQuery = "SELECT serviceID, nodeID, maxItems FROM ofPubsubNode WHERE "
+    			+ "leaf=1 AND persistItems=1 AND maxItems > 0";
+
+		boolean abortTransaction = false;
+        Connection con = null;
+        PreparedStatement pstmt = null;
+		PreparedStatement nodeConfig = null;
+        ResultSet rs = null;
+
+        try
+        {
+            con = DbConnectionManager.getTransactionConnection();
+			nodeConfig = con.prepareStatement(persistentNodeQuery);
+            rs = nodeConfig.executeQuery();
+			PreparedStatement purgeNode = con
+					.prepareStatement(getPurgeStatement(DbConnectionManager.getDatabaseType()));
+
+            while (rs.next())
+            {
+            	String svcId = rs.getString(1);
+            	String nodeId = rs.getString(2);
+            	int maxItems = rs.getInt(3);
+
+				setPurgeParams(DbConnectionManager.getDatabaseType(), purgeNode, svcId, nodeId, maxItems);
+
+				purgeNode.addBatch();
+            }
+			purgeNode.executeBatch();
+		}
+		catch (Exception sqle)
+		{
+		    log.error(sqle.getMessage(), sqle);
+			abortTransaction = true;
+		}
+		finally
+		{
+			DbConnectionManager.closeResultSet(rs);
+			DbConnectionManager.closeStatement(rs, nodeConfig);
+			DbConnectionManager.closeTransactionConnection(pstmt, con, abortTransaction);
+		}
+    }
+
+	private static void setPurgeParams(DatabaseType dbType, PreparedStatement purgeStmt, String serviceId,
+			String nodeId, int maxItems) throws SQLException
+	{
+		switch (dbType)
+		{
+		case hsqldb:
+			purgeStmt.setString(1, serviceId);
+			purgeStmt.setString(2, nodeId);
+			purgeStmt.setString(3, serviceId);
+			purgeStmt.setString(4, nodeId);
+			purgeStmt.setInt(5, maxItems);
+			break;
+
+		default:
+			purgeStmt.setString(1, serviceId);
+			purgeStmt.setString(2, nodeId);
+			purgeStmt.setInt(3, maxItems);
+			purgeStmt.setString(4, serviceId);
+			purgeStmt.setString(5, nodeId);
+			break;
+		}
+	}
+
+	private static String getPurgeStatement(DatabaseType type)
+	{
+		switch (type)
+		{
+		case hsqldb:
+			return PURGE_FOR_SIZE_HSQLDB;
+
+		default:
+			return PURGE_FOR_SIZE;
+		}
+	}
+
+    // formerly in PEPServiceManager
+
+    /**
+     * {@inheritDoc}
+     */
+	public String loadPEPServiceFromDB(String jid) {
+		String serviceID = null;
+
+		Connection con = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try {
+			con = DbConnectionManager.getConnection();
+			// Get all PEP services
+			pstmt = con.prepareStatement(GET_PEP_SERVICE);
+			pstmt.setString(1, jid);
+			rs = pstmt.executeQuery();
+			// Restore old PEPServices
+			while (rs.next()) {
+				serviceID = rs.getString(1);
+
+				if (log.isDebugEnabled()) {
+					log.debug("PEP: Restored service for " + serviceID
+							+ " from the database.");
+				}
+			}
+		} catch (SQLException sqle) {
+			log.error(sqle.getMessage(), sqle);
+		} finally {
+			DbConnectionManager.closeConnection(rs, pstmt, con);
+		}
+
+		return serviceID;
+	}
+
 }

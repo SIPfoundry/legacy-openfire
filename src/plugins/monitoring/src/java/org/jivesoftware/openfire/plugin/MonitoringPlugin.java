@@ -19,114 +19,190 @@
 
 package org.jivesoftware.openfire.plugin;
 
-import org.jivesoftware.openfire.archive.*;
+import java.io.File;
+import java.io.FileFilter;
+
+import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.archive.ArchiveIndexer;
+import org.jivesoftware.openfire.archive.ArchiveInterceptor;
+import org.jivesoftware.openfire.archive.ArchiveSearcher;
+import org.jivesoftware.openfire.archive.ConversationManager;
+import org.jivesoftware.openfire.archive.GroupConversationInterceptor;
+import org.jivesoftware.openfire.archive.MonitoringConstants;
 import org.jivesoftware.openfire.container.Plugin;
 import org.jivesoftware.openfire.container.PluginManager;
 import org.jivesoftware.openfire.reporting.graph.GraphEngine;
-import org.jivesoftware.openfire.reporting.stats.*;
+import org.jivesoftware.openfire.reporting.stats.DefaultStatsViewer;
+import org.jivesoftware.openfire.reporting.stats.MockStatsViewer;
+import org.jivesoftware.openfire.reporting.stats.StatisticsModule;
+import org.jivesoftware.openfire.reporting.stats.StatsEngine;
+import org.jivesoftware.openfire.reporting.stats.StatsViewer;
 import org.jivesoftware.openfire.reporting.util.TaskEngine;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.JiveProperties;
 import org.picocontainer.MutablePicoContainer;
 import org.picocontainer.defaults.DefaultPicoContainer;
 
-import java.io.File;
-import java.io.FileFilter;
+import com.reucon.openfire.plugin.archive.ArchiveManager;
+import com.reucon.openfire.plugin.archive.ArchiveProperties;
+import com.reucon.openfire.plugin.archive.IndexManager;
+import com.reucon.openfire.plugin.archive.PersistenceManager;
+import com.reucon.openfire.plugin.archive.impl.ArchiveManagerImpl;
+import com.reucon.openfire.plugin.archive.impl.JdbcPersistenceManager;
+import com.reucon.openfire.plugin.archive.xep0136.Xep0136Support;
 
 /**
  * Openfire Monitoring plugin.
- *
+ * 
  * @author Matt Tucker
  */
 public class MonitoringPlugin implements Plugin {
 
-    private MutablePicoContainer picoContainer;
+	private static final int DEFAULT_CONVERSATION_TIMEOUT = 30; // minutes
 
-    private boolean shuttingDown = false;
+	private MutablePicoContainer picoContainer;
 
-    public MonitoringPlugin() {
+	private boolean shuttingDown = false;
 
-        // Enable AWT headless mode so that stats will work in headless environments.
-        System.setProperty("java.awt.headless", "true");
+	private int conversationTimeout;
+	private static MonitoringPlugin instance;
+	private boolean enabled = true;
+	private PersistenceManager persistenceManager;
+	private ArchiveManager archiveManager;
+	private IndexManager indexManager;
+	private Xep0136Support xep0136Support;
 
-        picoContainer = new DefaultPicoContainer();
-        picoContainer.registerComponentInstance(TaskEngine.getInstance());
-        picoContainer.registerComponentInstance(JiveProperties.getInstance());
+	public MonitoringPlugin() {
+		instance = this;
 
-        // Stats and Graphing classes
-        picoContainer.registerComponentImplementation(StatsEngine.class);
-        picoContainer.registerComponentImplementation(GraphEngine.class);
-        picoContainer.registerComponentImplementation(StatisticsModule.class);
-        picoContainer.registerComponentImplementation(StatsViewer.class,
-            getStatsViewerImplementation());
+		// Enable AWT headless mode so that stats will work in headless
+		// environments.
+		System.setProperty("java.awt.headless", "true");
 
-        // Archive classes
-        picoContainer.registerComponentImplementation(ConversationManager.class);
-        picoContainer.registerComponentImplementation(ArchiveInterceptor.class);
-        picoContainer.registerComponentImplementation(GroupConversationInterceptor.class);
-        picoContainer.registerComponentImplementation(ArchiveSearcher.class);
-        picoContainer.registerComponentImplementation(ArchiveIndexer.class);
-    }
+		picoContainer = new DefaultPicoContainer();
+		picoContainer.registerComponentInstance(TaskEngine.getInstance());
+		picoContainer.registerComponentInstance(JiveProperties.getInstance());
 
-    private Class<? extends StatsViewer> getStatsViewerImplementation() {
-        if (JiveGlobals.getBooleanProperty("stats.mock.viewer", false)) {
-            return MockStatsViewer.class;
-        }
-        else {
-            return DefaultStatsViewer.class;
-        }
-    }
+		// Stats and Graphing classes
+		picoContainer.registerComponentImplementation(StatsEngine.class);
+		picoContainer.registerComponentImplementation(GraphEngine.class);
+		picoContainer.registerComponentImplementation(StatisticsModule.class);
+		picoContainer.registerComponentImplementation(StatsViewer.class,
+				getStatsViewerImplementation());
 
-    /**
-     * Returns the instance of a module registered with the Monitoring plugin.
-     *
-     * @param clazz the module class.
-     * @return the instance of the module.
-     */
-    public Object getModule(Class<?> clazz) {
-        return picoContainer.getComponentInstanceOfType(clazz);
-    }
+		// Archive classes
+		picoContainer
+				.registerComponentImplementation(ConversationManager.class);
+		picoContainer.registerComponentImplementation(ArchiveInterceptor.class);
+		picoContainer
+				.registerComponentImplementation(GroupConversationInterceptor.class);
+		picoContainer.registerComponentImplementation(ArchiveSearcher.class);
+		picoContainer.registerComponentImplementation(ArchiveIndexer.class);
+	}
 
-    public void initializePlugin(PluginManager manager, File pluginDirectory) {
-        System.out.println("Starting Monitoring Plugin");
+	private Class<? extends StatsViewer> getStatsViewerImplementation() {
+		if (JiveGlobals.getBooleanProperty("stats.mock.viewer", false)) {
+			return MockStatsViewer.class;
+		} else {
+			return DefaultStatsViewer.class;
+		}
+	}
 
-        // Check if we Enterprise is installed and stop loading this plugin if found
-        File pluginDir = new File(JiveGlobals.getHomeDirectory(), "plugins");
-        File[] jars = pluginDir.listFiles(new FileFilter() {
-            public boolean accept(File pathname) {
-                String fileName = pathname.getName().toLowerCase();
-                return (fileName.equalsIgnoreCase("enterprise.jar"));
-            }
-        });
-        if (jars.length > 0) {
-            // Do not load this plugin since Enterprise is still installed
-            System.out.println("Enterprise plugin found. Stopping Monitoring Plugin");
-            throw new IllegalStateException("This plugin cannot run next to the Enterprise plugin");
-        }
+	public static MonitoringPlugin getInstance() {
+		return instance;
+	}
 
-        shuttingDown = false;
+	/* enabled property */
+	public boolean isEnabled() {
+		return this.enabled;
+	}
 
-        // Make sure that the monitoring folder exists under the home directory
-        File dir = new File(JiveGlobals.getHomeDirectory() +
-            File.separator + "monitoring");
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
+	public ArchiveManager getArchiveManager() {
+		return archiveManager;
+	}
 
-        picoContainer.start();
-    }
+	public IndexManager getIndexManager() {
+		return indexManager;
+	}
 
-    public void destroyPlugin() {
-        shuttingDown = true;
+	public PersistenceManager getPersistenceManager() {
+		return persistenceManager;
+	}
 
-        if (picoContainer != null) {
-            picoContainer.stop();
-            picoContainer.dispose();
-            picoContainer = null;
-        }
-    }
+	/**
+	 * Returns the instance of a module registered with the Monitoring plugin.
+	 * 
+	 * @param clazz
+	 *            the module class.
+	 * @return the instance of the module.
+	 */
+	public Object getModule(Class<?> clazz) {
+		return picoContainer.getComponentInstanceOfType(clazz);
+	}
 
-    public boolean isShuttingDown() {
-        return shuttingDown;
-    }
+	public void initializePlugin(PluginManager manager, File pluginDirectory) {
+
+		/* Configuration */
+		conversationTimeout = JiveGlobals.getIntProperty(
+				ArchiveProperties.CONVERSATION_TIMEOUT,
+				DEFAULT_CONVERSATION_TIMEOUT);
+		enabled = JiveGlobals.getBooleanProperty(ArchiveProperties.ENABLED,
+				false);
+
+		persistenceManager = new JdbcPersistenceManager();
+
+		archiveManager = new ArchiveManagerImpl(persistenceManager,
+				indexManager, conversationTimeout);
+
+		xep0136Support = new Xep0136Support(XMPPServer.getInstance());
+		xep0136Support.start();
+
+		System.out.println("Starting Monitoring Plugin");
+
+		// Check if we Enterprise is installed and stop loading this plugin if
+		// found
+		File pluginDir = new File(JiveGlobals.getHomeDirectory(), "plugins");
+		File[] jars = pluginDir.listFiles(new FileFilter() {
+			public boolean accept(File pathname) {
+				String fileName = pathname.getName().toLowerCase();
+				return (fileName.equalsIgnoreCase("enterprise.jar"));
+			}
+		});
+		if (jars.length > 0) {
+			// Do not load this plugin since Enterprise is still installed
+			System.out
+					.println("Enterprise plugin found. Stopping Monitoring Plugin");
+			throw new IllegalStateException(
+					"This plugin cannot run next to the Enterprise plugin");
+		}
+
+		shuttingDown = false;
+
+		// Make sure that the monitoring folder exists under the home directory
+		File dir = new File(JiveGlobals.getHomeDirectory() + File.separator
+				+ MonitoringConstants.NAME);
+		if (!dir.exists()) {
+			dir.mkdirs();
+		}
+
+		picoContainer.start();
+
+		xep0136Support = new Xep0136Support(XMPPServer.getInstance());
+		xep0136Support.start();
+	}
+
+	public void destroyPlugin() {
+		shuttingDown = true;
+
+		if (picoContainer != null) {
+			picoContainer.stop();
+			picoContainer.dispose();
+			picoContainer = null;
+		}
+		instance = null;
+	}
+
+	public boolean isShuttingDown() {
+		return shuttingDown;
+	}
 }

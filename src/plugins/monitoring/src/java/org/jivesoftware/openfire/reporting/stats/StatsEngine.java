@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimerTask;
 
+import org.jivesoftware.openfire.archive.MonitoringConstants;
 import org.jivesoftware.openfire.cluster.ClusterManager;
 import org.jivesoftware.openfire.reporting.util.TaskEngine;
 import org.jivesoftware.openfire.stats.Statistic;
@@ -170,7 +171,7 @@ public class StatsEngine implements Startable {
      * @return Returns the directory in which all of the stat databases will be stored.
      */
     private String getStatsDirectroy() {
-        return JiveGlobals.getHomeDirectory() + File.separator + "monitoring"
+        return JiveGlobals.getHomeDirectory() + File.separator + MonitoringConstants.NAME
                 + File.separator + "stats" + File.separator;
     }
 

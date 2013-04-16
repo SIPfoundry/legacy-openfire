@@ -20,18 +20,17 @@
 
 package org.jivesoftware.openfire.pubsub.models;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
 
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 import org.dom4j.QName;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.group.Group;
+import org.jivesoftware.openfire.group.GroupManager;
+import org.jivesoftware.openfire.group.GroupNotFoundException;
 import org.jivesoftware.openfire.pubsub.Node;
-import org.jivesoftware.openfire.roster.Roster;
-import org.jivesoftware.openfire.roster.RosterItem;
-import org.jivesoftware.openfire.user.UserNotFoundException;
+import org.jivesoftware.openfire.roster.RosterManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;
@@ -51,47 +50,35 @@ public class RosterAccess extends AccessModel {
 
     @Override
 	public boolean canSubscribe(Node node, JID owner, JID subscriber) {
-        // Let node owners and sysadmins always subcribe to the node
+        // Let node owners and sysadmins always subscribe to the node
         if (node.isAdmin(owner)) {
             return true;
         }
-        // Get the only owner of the node
-        JID nodeOwner = node.getOwners().iterator().next();
-        // Give access to the owner of the roster :)
-        if (nodeOwner.toBareJID().equals(owner.toBareJID())) {
-            return true;
+        for (JID nodeOwner : node.getOwners()) {
+            if (nodeOwner.equals(owner)) {
+                return true;
+            }
         }
-        // Get the roster of the node owner
+        // Check that the subscriber is a local user
         XMPPServer server = XMPPServer.getInstance();
-        // Check that the node owner is a local user
-        if (server.isLocal(nodeOwner)) {
-            try {
-                Roster roster = server.getRosterManager().getRoster(nodeOwner.getNode());
-                RosterItem item = roster.getRosterItem(owner);
-                // Check that the subscriber is subscribe to the node owner's presence
-                boolean isSubscribed = item != null && (
-                        RosterItem.SUB_BOTH == item.getSubStatus() ||
-                                RosterItem.SUB_FROM == item.getSubStatus());
-                if (isSubscribed) {
-                    // Get list of groups where the contact belongs
-                    List<String> contactGroups = new ArrayList<String>(item.getGroups());
-                    for (Group group : item.getSharedGroups()) {
-                        contactGroups.add(group.getName());
-                    }
-                    for (Group group : item.getInvisibleSharedGroups()) {
-                        contactGroups.add(group.getName());
-                    }
-                    // Check if subscriber is present in the allowed groups of the node
-                    return contactGroups.removeAll(node.getRosterGroupsAllowed());
-                }
-            }
-            catch (UserNotFoundException e) {
-                // Do nothing
-            }
+        if (server.isLocal(owner)) {
+            GroupManager gMgr = GroupManager.getInstance();
+        	Collection<String> nodeGroups = node.getRosterGroupsAllowed();
+        	for (String groupName : nodeGroups) {
+        		try {
+	        		Group group = gMgr.getGroup(groupName);
+	        		// access allowed if the node group is visible to the subscriber
+	        		if (server.getRosterManager().isGroupVisible(group, owner)) {
+	        			return true;
+	        		}
+        		} catch (GroupNotFoundException gnfe){ 
+        			// ignore
+        		}
+        	}
         }
         else {
-            // Owner of the node is a remote user. This should never happen.
-            Log.warn("Node with access model Roster has a remote user as owner: " +
+            // Subscriber is a remote user. This should never happen.
+            Log.warn("Node with access model Roster has a remote user as subscriber: " +
                     node.getNodeID());
         }
         return false;

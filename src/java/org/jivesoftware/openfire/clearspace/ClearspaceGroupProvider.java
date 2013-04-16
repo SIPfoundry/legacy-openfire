@@ -18,25 +18,31 @@
  */
 package org.jivesoftware.openfire.clearspace;
 
-import org.dom4j.Element;
-import org.dom4j.Node;
-import org.jivesoftware.openfire.XMPPServer;
 import static org.jivesoftware.openfire.clearspace.ClearspaceManager.HttpType.GET;
 import static org.jivesoftware.openfire.clearspace.WSUtils.getReturn;
 import static org.jivesoftware.openfire.clearspace.WSUtils.parseStringArray;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.dom4j.Element;
+import org.dom4j.Node;
+import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.group.AbstractGroupProvider;
 import org.jivesoftware.openfire.group.Group;
-import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
+import org.jivesoftware.openfire.group.GroupCollection;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
-import org.jivesoftware.openfire.group.GroupProvider;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.xmpp.packet.JID;
-
-import java.util.*;
 
 /**
  * @author Daniel Henninger
  */
-public class ClearspaceGroupProvider implements GroupProvider {
+public class ClearspaceGroupProvider extends AbstractGroupProvider {
     protected static final String URL_PREFIX = "socialGroupService/";
 
     private static final String TYPE_ID_OWNER = "0";
@@ -45,24 +51,8 @@ public class ClearspaceGroupProvider implements GroupProvider {
     public ClearspaceGroupProvider() {
     }
 
-    public Group createGroup(String name) throws UnsupportedOperationException, GroupAlreadyExistsException {
-        throw new UnsupportedOperationException("Could not create groups.");
-    }
-
-    public void deleteGroup(String name) throws UnsupportedOperationException {
-        throw new UnsupportedOperationException("Could not delete groups.");
-    }
-
     public Group getGroup(String name) throws GroupNotFoundException {
         return translateGroup(getGroupByName(name));
-    }
-
-    public void setName(String oldName, String newName) throws UnsupportedOperationException, GroupAlreadyExistsException {
-        throw new UnsupportedOperationException("Could not modify groups.");
-    }
-
-    public void setDescription(String name, String description) throws GroupNotFoundException {
-        throw new UnsupportedOperationException("Could not modify groups.");
     }
 
     public int getGroupCount() {
@@ -76,12 +66,27 @@ public class ClearspaceGroupProvider implements GroupProvider {
         }
     }
 
-    public Collection<String> getSharedGroupsNames() {
+    @Override
+	public Collection<String> getSharedGroupNames() {
         // Return all social group names since every social group is a shared group
         return getGroupNames();
     }
 
-    public Collection<String> getGroupNames() {
+	@Override
+	public Collection<String> getSharedGroupNames(JID user) {
+		// TODO: is there a better way to get the shared Clearspace groups for a given user?
+		Collection<String> result = new ArrayList<String>();
+		Iterator<Group> sharedGroups = new GroupCollection(getGroupNames()).iterator();
+		while (sharedGroups.hasNext()) {
+			Group group = sharedGroups.next();
+			if (group.isUser(user)) {
+				result.add(group.getName());
+			}
+		}
+		return result;
+	}
+
+	public Collection<String> getGroupNames() {
         try {
             String path = URL_PREFIX + "socialGroupNames";
             Element element = ClearspaceManager.getInstance().executeRequest(GET, path);
@@ -120,36 +125,8 @@ public class ClearspaceGroupProvider implements GroupProvider {
         }
     }
 
-    public void addMember(String groupName, JID user, boolean administrator) throws UnsupportedOperationException {
-        throw new UnsupportedOperationException("Could not modify groups.");
-    }
-
-    public void updateMember(String groupName, JID user, boolean administrator) throws UnsupportedOperationException {
-        throw new UnsupportedOperationException("Could not modify groups.");
-    }
-
-    public void deleteMember(String groupName, JID user) throws UnsupportedOperationException {
-        throw new UnsupportedOperationException("Could not modify groups.");
-    }
-
-    public boolean isReadOnly() {
-        return true;
-    }
-
-    public Collection<String> search(String query) {
-        throw new UnsupportedOperationException("Group search is not supported");
-    }
-
-    public Collection<String> search(String query, int startIndex, int numResults) {
-        throw new UnsupportedOperationException("Group search is not supported");
-    }
-
-    public boolean isSearchSupported() {
-        return false;
-    }
-
     /**
-     * Translate a XML respose of a group to a <code>Group</code>.
+     * Translate a XML response of a group to a <code>Group</code>.
      *
      * @param responseNode the XML representation of a CS group.
      * @return the group that corresponds to the XML.
@@ -184,7 +161,7 @@ public class ClearspaceGroupProvider implements GroupProvider {
             XMPPServer server = XMPPServer.getInstance();
 
             // Gets the JID from the response
-            List<Element> membersElement = (List<Element>) getGroupMembers(id).elements("return");
+            List<Element> membersElement = getGroupMembers(id).elements("return");
             for (Element memberElement : membersElement) {
 
                 String username = memberElement.element("user").element("username").getText();
@@ -235,7 +212,7 @@ public class ClearspaceGroupProvider implements GroupProvider {
      * @return the group.                                                   
      * @throws GroupNotFoundException if a group with that name doesn't exist or there is a problem getting it.
      */
-    private Element getGroupByName(String name) throws GroupNotFoundException {
+    private static Element getGroupByName(String name) throws GroupNotFoundException {
         try {
             // Encode potentially non-ASCII characters
             name = URLUTF8Encoder.encode(name);
@@ -255,7 +232,7 @@ public class ClearspaceGroupProvider implements GroupProvider {
      * @return all the members of the group.
      * @throws GroupNotFoundException if the groups doesn't exist or there is a problem getting the members.
      */
-    private Element getGroupMembers(long groupID) throws GroupNotFoundException {
+    private static Element getGroupMembers(long groupID) throws GroupNotFoundException {
         try {
             // Gets the members and administrators
             String path = URL_PREFIX + "members/" + groupID;

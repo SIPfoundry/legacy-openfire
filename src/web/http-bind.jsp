@@ -36,13 +36,34 @@
         Map<String, String> errorMap = new HashMap<String, String>();
         boolean isEnabled = ParamUtils.getBooleanParameter(request, "httpBindEnabled",
                 serverManager.isHttpBindEnabled());
+        // CORS        
+        boolean isCORSEnabled = ParamUtils.getBooleanParameter(request, "CORSEnabled",
+                serverManager.isCORSEnabled());
+        // XFF        
+        boolean isXFFEnabled = ParamUtils.getBooleanParameter(request, "XFFEnabled",
+                serverManager.isXFFEnabled());
         if (isEnabled) {
             int requestedPort = ParamUtils.getIntParameter(request, "port",
                     serverManager.getHttpBindUnsecurePort());
             int requestedSecurePort = ParamUtils.getIntParameter(request, "securePort",
                     serverManager.getHttpBindSecurePort());
+            // CORS
+            String CORSDomains = ParamUtils.getParameter(request, "CORSDomains", true);     
             try {
                 serverManager.setHttpBindPorts(requestedPort, requestedSecurePort);
+                // CORS
+                serverManager.setCORSEnabled(isCORSEnabled);
+                serverManager.setCORSAllowOrigin(CORSDomains);
+                // XFF
+                serverManager.setXFFEnabled(isXFFEnabled);
+                String param = ParamUtils.getParameter(request, "XFFHeader");
+                serverManager.setXFFHeader(param);
+                param = ParamUtils.getParameter(request, "XFFServerHeader");
+                serverManager.setXFFServerHeader(param);
+                param = ParamUtils.getParameter(request, "XFFHostHeader");
+                serverManager.setXFFHostHeader(param);
+                param = ParamUtils.getParameter(request, "XFFHostName");
+                serverManager.setXFFHostName(param);
             }
             catch (Exception e) {
                 Log.error("An error has occured configuring the HTTP binding ports", e);
@@ -71,6 +92,14 @@
     int port = serverManager.getHttpBindUnsecurePort();
     int securePort = serverManager.getHttpBindSecurePort();
     boolean isScriptSyntaxEnabled = serverManager.isScriptSyntaxEnabled();
+    // CORS
+    boolean isCORSEnabled = serverManager.isCORSEnabled();
+    // XFF
+    boolean isXFFEnabled = serverManager.isXFFEnabled();
+    String xffHeader = serverManager.getXFFHeader();
+    String xffServerHeader = serverManager.getXFFServerHeader();
+    String xffHostHeader = serverManager.getXFFHostHeader();
+    String xffHostName = serverManager.getXFFHostName();
 %>
 
 <%@page import="org.jivesoftware.openfire.http.FlashCrossDomainServlet"%><html>
@@ -86,6 +115,15 @@
             $("securePort").disabled = !enabled;
             $("rb03").disabled = !enabled;
             $("rb04").disabled = !enabled;
+            $("rb05").disabled = !enabled;
+            $("rb06").disabled = !enabled;
+            $("rb07").disabled = !enabled;
+            $("rb08").disabled = !enabled;
+            $("CORSDomains").disabled = !enabled;
+            $("XFFHeader").disabled = !enabled;
+            $("XFFServerHeader").disabled = !enabled;
+            $("XFFHostHeader").disabled = !enabled;
+            $("XFFHostName").disabled = !enabled;
             $("crossdomain").disabled = !enabled;
         }
         window.onload = setTimeout("setEnabled()", 500);
@@ -198,6 +236,119 @@
 		</tbody>
 		</table>
     </div>
+    
+    <!-- CORS -->
+	<div class="jive-contentBoxHeader"><fmt:message key="httpbind.settings.cors.group"/></div>
+    <div class="jive-contentbox">
+    	<table cellpadding="3" cellspacing="0" border="0">
+		<tbody>
+			<tr valign="top">
+				<td width="1%" nowrap>
+					<input type="radio" name="CORSEnabled" value="true" id="rb05"
+					 <%= (isCORSEnabled ? "checked" : "") %>>
+				</td>
+				<td width="99%">
+					<label for="rb05">
+						<b><fmt:message key="httpbind.settings.cors.label_enable"/></b> - <fmt:message key="httpbind.settings.cors.label_enable_info"/>
+					</label>
+					<table border="0">
+						<tr>
+							<td>
+								<label for="CORSDomains">
+									<fmt:message key="httpbind.settings.cors.domain_list"/>
+								</label>
+							</td>
+						</tr>
+                        <tr>
+                            <td>
+                                <input id="CORSDomains" type="text" size="80" name="CORSDomains" value="<%= serverManager.getCORSAllowOrigin() %>">
+                            </td>
+                        </tr>
+                    </table>
+				</td>
+			</tr>
+            <tr valign="top">
+				<td width="1%" nowrap>
+					<input type="radio" name="CORSEnabled" value="false" id="rb06"
+					 <%= (!isCORSEnabled ? "checked" : "") %>>
+				</td>
+				<td width="99%">
+					<label for="rb06">
+					<b><fmt:message key="httpbind.settings.cors.label_disable"/></b> - <fmt:message key="httpbind.settings.cors.label_disable_info"/>
+					</label>
+				</td>
+			</tr>
+		</tbody>
+		</table>
+    </div>
+    <!-- CORS -->
+    
+    <!-- XFF -->
+	<div class="jive-contentBoxHeader"><fmt:message key="httpbind.settings.xff.group"/></div>
+    <div class="jive-contentbox">
+    	<table cellpadding="3" cellspacing="0" border="0">
+		<tbody>
+			<tr valign="top">
+				<td width="1%" nowrap>
+					<input type="radio" name="XFFEnabled" value="true" id="rb07"
+					 <%= (isXFFEnabled ? "checked" : "") %>>
+				</td>
+				<td width="99%">
+					<label for="rb07">
+						<b><fmt:message key="httpbind.settings.xff.label_enable"/></b> - <fmt:message key="httpbind.settings.xff.label_enable_info"/>
+					</label>
+					<table border="0">
+						<tr>
+							<td>
+								<label for="XFFHeader"><fmt:message key="httpbind.settings.xff.forwarded_for"/></label>
+							</td>
+                            <td>
+                                <input id="XFFHeader" type="text" size="40" name="XFFHeader"  value="<%= xffHeader == null ? "" : xffHeader %>">
+                            </td>
+						</tr>
+						<tr>
+							<td>
+								<label for="XFFServerHeader"><fmt:message key="httpbind.settings.xff.forwarded_server"/></label>
+							</td>
+                            <td>
+                                <input id="XFFServerHeader" type="text" size="40" name="XFFServerHeader" value="<%= xffServerHeader == null ? "" : xffServerHeader %>">
+                            </td>
+						</tr>
+						<tr>
+							<td>
+								<label for="XFFHostHeader"><fmt:message key="httpbind.settings.xff.forwarded_host"/></label>
+							</td>
+                            <td>
+                                <input id="XFFHostHeader" type="text" size="40" name="XFFHostHeader" value="<%= xffHostHeader == null ? "" : xffHostHeader %>">
+                            </td>
+						</tr>
+						<tr>
+							<td>
+								<label for="XFFHostName"><fmt:message key="httpbind.settings.xff.host_name"/></label>
+							</td>
+                            <td>
+                                <input id="XFFHostName" type="text" size="40" name="XFFHostName" value="<%= xffHostName == null ? "" : xffHostName %>">
+                            </td>
+						</tr>
+                    </table>
+				</td>
+			</tr>
+            <tr valign="top">
+				<td width="1%" nowrap>
+					<input type="radio" name="XFFEnabled" value="false" id="rb08"
+					 <%= (!isXFFEnabled ? "checked" : "") %>>
+				</td>
+				<td width="99%">
+					<label for="rb08">
+					<b><fmt:message key="httpbind.settings.xff.label_disable"/></b> - <fmt:message key="httpbind.settings.xff.label_disable_info"/>
+					</label>
+				</td>
+			</tr>
+		</tbody>
+		</table>
+    </div>
+    <!-- XFF -->
+    
     <div class="jive-contentBoxHeader">Cross-domain policy</div>
     <div class="jive-contentbox">
     	<p><fmt:message key="httpbind.settings.crossdomain.info.general" /></p>

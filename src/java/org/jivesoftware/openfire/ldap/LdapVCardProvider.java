@@ -34,9 +34,9 @@ import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 import org.dom4j.Node;
+import org.jivesoftware.openfire.provider.VCardProvider;
 import org.jivesoftware.openfire.vcard.DefaultVCardProvider;
 import org.jivesoftware.openfire.vcard.VCardManager;
-import org.jivesoftware.openfire.vcard.VCardProvider;
 import org.jivesoftware.util.AlreadyExistsException;
 import org.jivesoftware.util.Base64;
 import org.jivesoftware.util.JiveGlobals;
@@ -261,6 +261,9 @@ public class LdapVCardProvider implements VCardProvider, PropertyEventListener {
         username = JID.unescapeNode(username);
         Map<String, String> map = getLdapAttributes(username);
         Log.debug("LdapVCardProvider: Retrieving LDAP mapped vcard for " + username);
+        if (map.isEmpty()) {
+            return null;
+        }
         Element vcard = new VCard(template).getVCard(map);
         if (mergeVCard == null) {
             // No vcard passed in?  Hrm.  Fine, return LDAP vcard.

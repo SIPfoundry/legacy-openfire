@@ -22,9 +22,6 @@ package org.jivesoftware.util;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,7 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -393,7 +390,7 @@ public class JiveGlobals {
      * </pre>
      *
      * If the specified property can't be found, the <tt>defaultValue</tt> will be returned.
-     * If the property is found, it will be parsed using {@link Boolean#valueOf(String)}.  
+     * If the property is found, it will be parsed using {@link Boolean#valueOf(String)}.
      *
      * @param name the name of the property to return.
      * @param defaultValue value returned if the property could not be loaded or was not
@@ -484,14 +481,14 @@ public class JiveGlobals {
      * @param parent the name of the parent property to return the children for.
      * @return all child property values for the given parent.
      */
-    public static List getXMLProperties(String parent) {
+    public static List<String> getXMLProperties(String parent) {
         if (xmlProperties == null) {
             loadSetupProperties();
         }
 
         // jiveHome not loaded?
         if (xmlProperties == null) {
-            return Collections.EMPTY_LIST;
+            return Collections.emptyList();
         }
 
         String[] propNames = xmlProperties.getChildrenProperties(parent);
@@ -526,13 +523,7 @@ public class JiveGlobals {
      * @return the property value specified by name.
      */
     public static String getProperty(String name) {
-        if (properties == null) {
-            if (isSetupMode()) {
-                return null;
-            }
-            properties = JiveProperties.getInstance();
-        }
-        return properties.get(name);
+        return getProperty(name, null);
     }
 
     /**
@@ -545,9 +536,9 @@ public class JiveGlobals {
      */
     public static String getProperty(String name, String defaultValue) {
         if (properties == null) {
-            if (isSetupMode()) {
-                return defaultValue;
-            }
+//            if (isSetupMode()) {
+//                return defaultValue;
+//            }
             properties = JiveProperties.getInstance();
         }
         String value = properties.get(name);
@@ -810,25 +801,8 @@ public class JiveGlobals {
         if (Boolean.valueOf(JiveGlobals.getXMLProperty("setup"))) {
             return false;
         }
-        // Check if the DB configuration is done
-        if (DbConnectionManager.getConnectionProvider() == null) {
-            // DB setup is still not completed so setup is needed
-            return true;
-        }
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            // Properties can now be loaded from DB so consider setup done
-        }
-        catch (SQLException e) {
-            // Properties cannot be loaded from DB so do not consider setup done
-            return true;
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-        return false;
+
+        return ProviderFactory.getConnectionManagerWrapper().isSetupMode();
     }
 
     /**

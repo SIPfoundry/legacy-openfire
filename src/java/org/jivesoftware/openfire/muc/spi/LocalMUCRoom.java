@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -66,6 +67,8 @@ import org.jivesoftware.openfire.muc.cluster.OccupantLeftEvent;
 import org.jivesoftware.openfire.muc.cluster.UpdateOccupant;
 import org.jivesoftware.openfire.muc.cluster.UpdateOccupantRequest;
 import org.jivesoftware.openfire.muc.cluster.UpdatePresence;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveConstants;
@@ -91,7 +94,7 @@ import org.xmpp.packet.Presence;
  * rooms will be loaded by each cluster node when starting up. Not persistent rooms will be copied
  * from the senior cluster member. All room occupants will be copied from the senior cluster member
  * too.
- * 
+ *
  * @author Gaston Dombiak
  */
 public class LocalMUCRoom implements MUCRoom {
@@ -111,12 +114,12 @@ public class LocalMUCRoom implements MUCRoom {
     /**
      * The occupants of the room accessible by the occupants bare JID.
      */
-    private Map<String, List<MUCRole>> occupantsByBareJID = new ConcurrentHashMap<String, List<MUCRole>>();
+    private ConcurrentMap<JID, List<MUCRole>> occupantsByBareJID = new ConcurrentHashMap<JID, List<MUCRole>>();
 
     /**
      * The occupants of the room accessible by the occupants full JID.
      */
-    private Map<JID, MUCRole> occupantsByFullJID = new ConcurrentHashMap<JID, MUCRole>();
+    private ConcurrentMap<JID, MUCRole> occupantsByFullJID = new ConcurrentHashMap<JID, MUCRole>();
 
     /**
      * The name of the room.
@@ -169,22 +172,22 @@ public class LocalMUCRoom implements MUCRoom {
     /**
      * List of chatroom's owner. The list contains only bare jid.
      */
-    List<String> owners = new CopyOnWriteArrayList<String>();
+    List<JID> owners = new CopyOnWriteArrayList<JID>();
 
     /**
      * List of chatroom's admin. The list contains only bare jid.
      */
-    List<String> admins = new CopyOnWriteArrayList<String>();
+    List<JID> admins = new CopyOnWriteArrayList<JID>();
 
     /**
-     * List of chatroom's members. The list contains only bare jid.
+     * List of chatroom's members. The list contains only bare jid, mapped to a nickname.
      */
-    private Map<String, String> members = new ConcurrentHashMap<String,String>();
+    private ConcurrentMap<JID, String> members = new ConcurrentHashMap<JID,String>();
 
     /**
      * List of chatroom's outcast. The list contains only bare jid of not allowed users.
      */
-    private List<String> outcasts = new CopyOnWriteArrayList<String>();
+    private List<JID> outcasts = new CopyOnWriteArrayList<JID>();
 
     /**
      * The natural language name of the room.
@@ -325,6 +328,11 @@ public class LocalMUCRoom implements MUCRoom {
     private boolean savedToDB = false;
 
     /**
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
+
+    /**
      * Do not use this constructor. It was added to implement the Externalizable
      * interface required to work inside of a cluster.
      */
@@ -338,7 +346,7 @@ public class LocalMUCRoom implements MUCRoom {
      * @param roomname the name of the room.
      * @param packetRouter the router for sending packets from the room.
      */
-    LocalMUCRoom(MultiUserChatService chatservice, String roomname, PacketRouter packetRouter) {
+    public LocalMUCRoom(MultiUserChatService chatservice, String roomname, PacketRouter packetRouter) {
         this.mucService = chatservice;
         this.name = roomname;
         this.naturalLanguageName = roomname;
@@ -348,18 +356,18 @@ public class LocalMUCRoom implements MUCRoom {
         this.creationDate = new Date(startTime);
         this.modificationDate = new Date(startTime);
         this.emptyDate = new Date(startTime);
-        this.canOccupantsChangeSubject = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.canOccupantsChangeSubject", false);
-        this.maxUsers = MUCPersistenceManager.getIntProperty(mucService.getServiceName(), "room.maxUsers", 30);
-        this.publicRoom = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.publicRoom", true);
-        this.persistent = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.persistent", false);
-        this.moderated = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.moderated", false);
-        this.membersOnly = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.membersOnly", false);
-        this.canOccupantsInvite = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.canOccupantsInvite", false);
-        this.canAnyoneDiscoverJID = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.canAnyoneDiscoverJID", true);
-        this.logEnabled = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.logEnabled", false);
-        this.loginRestrictedToNickname = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.loginRestrictedToNickname", false);
-        this.canChangeNickname = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.canChangeNickname", true);
-        this.registrationEnabled = MUCPersistenceManager.getBooleanProperty(mucService.getServiceName(), "room.registrationEnabled", true);
+        this.canOccupantsChangeSubject = provider.getBooleanProperty(mucService.getServiceName(), "room.canOccupantsChangeSubject", false);
+        this.maxUsers = provider.getIntProperty(mucService.getServiceName(), "room.maxUsers", 30);
+        this.publicRoom = provider.getBooleanProperty(mucService.getServiceName(), "room.publicRoom", true);
+        this.persistent = provider.getBooleanProperty(mucService.getServiceName(), "room.persistent", false);
+        this.moderated = provider.getBooleanProperty(mucService.getServiceName(), "room.moderated", false);
+        this.membersOnly = provider.getBooleanProperty(mucService.getServiceName(), "room.membersOnly", false);
+        this.canOccupantsInvite = provider.getBooleanProperty(mucService.getServiceName(), "room.canOccupantsInvite", false);
+        this.canAnyoneDiscoverJID = provider.getBooleanProperty(mucService.getServiceName(), "room.canAnyoneDiscoverJID", true);
+        this.logEnabled = provider.getBooleanProperty(mucService.getServiceName(), "room.logEnabled", false);
+        this.loginRestrictedToNickname = provider.getBooleanProperty(mucService.getServiceName(), "room.loginRestrictedToNickname", false);
+        this.canChangeNickname = provider.getBooleanProperty(mucService.getServiceName(), "room.canChangeNickname", true);
+        this.registrationEnabled = provider.getBooleanProperty(mucService.getServiceName(), "room.registrationEnabled", true);
         // TODO Allow to set the history strategy from the configuration form?
         roomHistory = new MUCRoomHistory(this, new HistoryStrategy(mucService.getHistoryStrategy()));
         this.iqOwnerHandler = new IQOwnerHandler(this, packetRouter);
@@ -423,7 +431,7 @@ public class LocalMUCRoom implements MUCRoom {
             return;
         }
         this.emptyDate = emptyDate;
-        MUCPersistenceManager.updateRoomEmptyDate(this);
+        provider.updateRoomEmptyDate(this);
     }
 
     public Date getEmptyDate() {
@@ -445,7 +453,7 @@ public class LocalMUCRoom implements MUCRoom {
         throw new UserNotFoundException();
     }
 
-    public List<MUCRole> getOccupantsByBareJID(String jid) throws UserNotFoundException {
+    public List<MUCRole> getOccupantsByBareJID(JID jid) throws UserNotFoundException {
         List<MUCRole> roles = occupantsByBareJID.get(jid);
         if (roles != null && !roles.isEmpty()) {
             return Collections.unmodifiableList(roles);
@@ -473,7 +481,8 @@ public class LocalMUCRoom implements MUCRoom {
         return occupants.containsKey(nickname.toLowerCase());
     }
 
-    public String getReservedNickname(String bareJID) {
+    public String getReservedNickname(JID jid) {
+    	final JID bareJID = jid.asBareJID();
         String answer = members.get(bareJID);
         if (answer == null || answer.trim().length() == 0) {
             return null;
@@ -481,7 +490,9 @@ public class LocalMUCRoom implements MUCRoom {
         return answer;
     }
 
-    public MUCRole.Affiliation getAffiliation(String bareJID) {
+    public MUCRole.Affiliation getAffiliation(JID jid) {
+    	final JID bareJID = jid.asBareJID();
+
         if (owners.contains(bareJID)) {
             return MUCRole.Affiliation.owner;
         }
@@ -515,7 +526,8 @@ public class LocalMUCRoom implements MUCRoom {
             if (isDestroyed || (getMaxUsers() > 0 && getOccupantsCount() >= getMaxUsers())) {
                 throw new ServiceUnavailableException();
             }
-            boolean isOwner = owners.contains(user.getAddress().toBareJID());
+            final JID bareJID = user.getAddress().asBareJID();
+			boolean isOwner = owners.contains(bareJID);
             // If the room is locked and this user is not an owner raise a RoomLocked exception
             if (isLocked()) {
                 if (!isOwner) {
@@ -524,7 +536,7 @@ public class LocalMUCRoom implements MUCRoom {
             }
             // Check if the nickname is already used in the room
             if (occupants.containsKey(nickname.toLowerCase())) {
-                if (occupants.get(nickname.toLowerCase()).getUserAddress().toBareJID().equals(user.getAddress().toBareJID())) {
+                if (occupants.get(nickname.toLowerCase()).getUserAddress().toBareJID().equals(bareJID.toBareJID())) {
                     // Nickname exists in room, and belongs to this user, pretend to kick the previous instance.
                     // The previous instance will see that they are disconnected, and the new instance will
                     // "take over" the previous role.  Participants in the room shouldn't notice anything
@@ -560,12 +572,12 @@ public class LocalMUCRoom implements MUCRoom {
             // If another user attempts to join the room with a nickname reserved by the first user
             // raise a ConflictException
             if (members.containsValue(nickname)) {
-                if (!nickname.equals(members.get(user.getAddress().toBareJID()))) {
+                if (!nickname.equals(members.get(bareJID))) {
                     throw new ConflictException();
                 }
             }
             if (isLoginRestrictedToNickname()) {
-                String reservedNickname = members.get(user.getAddress().toBareJID());
+                String reservedNickname = members.get(bareJID);
                 if (reservedNickname != null && !nickname.equals(reservedNickname)) {
                     throw new NotAcceptableException();
                 }
@@ -579,23 +591,23 @@ public class LocalMUCRoom implements MUCRoom {
                 role = MUCRole.Role.moderator;
                 affiliation = MUCRole.Affiliation.owner;
             }
-            else if (mucService.getSysadmins().contains(user.getAddress().toBareJID())) {
+            else if (mucService.getSysadmins().contains(bareJID)) {
                 // The user is a system administrator of the MUC service. Treat him as an owner
                 // although he won't appear in the list of owners
                 role = MUCRole.Role.moderator;
                 affiliation = MUCRole.Affiliation.owner;
             }
-            else if (admins.contains(user.getAddress().toBareJID())) {
+            else if (admins.contains(bareJID)) {
                 // The user is an admin. Set the role and affiliation accordingly.
                 role = MUCRole.Role.moderator;
                 affiliation = MUCRole.Affiliation.admin;
             }
-            else if (members.containsKey(user.getAddress().toBareJID())) {
+            else if (members.containsKey(bareJID)) {
                 // The user is a member. Set the role and affiliation accordingly.
                 role = MUCRole.Role.participant;
                 affiliation = MUCRole.Affiliation.member;
             }
-            else if (outcasts.contains(user.getAddress().toBareJID())) {
+            else if (outcasts.contains(bareJID)) {
                 // The user is an outcast. Raise a "Forbidden" exception.
                 throw new ForbiddenException();
             }
@@ -614,10 +626,10 @@ public class LocalMUCRoom implements MUCRoom {
             // Add the new user as an occupant of this room
             occupants.put(nickname.toLowerCase(), joinRole);
             // Update the tables of occupants based on the bare and full JID
-            List<MUCRole> list = occupantsByBareJID.get(user.getAddress().toBareJID());
+            List<MUCRole> list = occupantsByBareJID.get(bareJID);
             if (list == null) {
                 list = new ArrayList<MUCRole>();
-                occupantsByBareJID.put(user.getAddress().toBareJID(), list);
+                occupantsByBareJID.put(bareJID, list);
             }
             list.add(joinRole);
             occupantsByFullJID.put(user.getAddress(), joinRole);
@@ -674,9 +686,9 @@ public class LocalMUCRoom implements MUCRoom {
             joinRole.send(message);
         }
         if (historyRequest == null) {
-            Iterator history = roomHistory.getMessageHistory();
+            Iterator<Message> history = roomHistory.getMessageHistory();
             while (history.hasNext()) {
-                joinRole.send((Message) history.next());
+                joinRole.send(history.next());
             }
         }
         else {
@@ -732,10 +744,11 @@ public class LocalMUCRoom implements MUCRoom {
         // Add the new user as an occupant of this room
         occupants.put(event.getNickname().toLowerCase(), joinRole);
         // Update the tables of occupants based on the bare and full JID
-        List<MUCRole> list = occupantsByBareJID.get(event.getUserAddress().toBareJID());
+        JID bareJID = event.getUserAddress().asBareJID();
+		List<MUCRole> list = occupantsByBareJID.get(bareJID);
         if (list == null) {
             list = new ArrayList<MUCRole>();
-            occupantsByBareJID.put(event.getUserAddress().toBareJID(), list);
+            occupantsByBareJID.put(bareJID, list);
         }
         list.add(joinRole);
         occupantsByFullJID.put(event.getUserAddress(), joinRole);
@@ -852,11 +865,12 @@ public class LocalMUCRoom implements MUCRoom {
         // Notify the user that he/she is no longer in the room
         leaveRole.destroy();
         // Update the tables of occupants based on the bare and full JID
-        List list = occupantsByBareJID.get(userAddress.toBareJID());
+        JID bareJID = userAddress.asBareJID();
+		List<MUCRole> list = occupantsByBareJID.get(bareJID);
         if (list != null) {
             list.remove(leaveRole);
             if (list.isEmpty()) {
-                occupantsByBareJID.remove(userAddress.toBareJID());
+                occupantsByBareJID.remove(bareJID);
             }
         }
         occupantsByFullJID.remove(userAddress);
@@ -867,7 +881,7 @@ public class LocalMUCRoom implements MUCRoom {
     }
 
     public void destroyRoom(DestroyRoomRequest destroyRequest) {
-        String alternateJID = destroyRequest.getAlternateJID();
+        JID alternateJID = destroyRequest.getAlternateJID();
         String reason = destroyRequest.getReason();
         MUCRole leaveRole;
         Collection<MUCRole> removedRoles = new ArrayList<MUCRole>();
@@ -918,8 +932,8 @@ public class LocalMUCRoom implements MUCRoom {
                 Element item = fragment.addElement("item");
                 item.addAttribute("affiliation", "none");
                 item.addAttribute("role", "none");
-                if (alternateJID != null && alternateJID.length() > 0) {
-                    fragment.addElement("destroy").addAttribute("jid", alternateJID);
+                if (alternateJID != null) {
+                    fragment.addElement("destroy").addAttribute("jid", alternateJID.toFullJID());
                 }
                 if (reason != null && reason.length() > 0) {
                     Element destroy = fragment.element("destroy");
@@ -936,13 +950,13 @@ public class LocalMUCRoom implements MUCRoom {
         }
         if (destroyRequest.isOriginator()) {
             // Remove the room from the DB if the room was persistent
-            MUCPersistenceManager.deleteFromDB(this);
+            provider.deleteFromDB(this);
             // Fire event that the room has been destroyed
             MUCEventDispatcher.roomDestroyed(getRole().getRoleAddress());
         }
     }
 
-    public void destroyRoom(String alternateJID, String reason) {
+    public void destroyRoom(JID alternateJID, String reason) {
         DestroyRoomRequest destroyRequest = new DestroyRoomRequest(this, alternateJID, reason);
         destroyRequest.setOriginator(true);
         destroyRequest.run();
@@ -1010,7 +1024,7 @@ public class LocalMUCRoom implements MUCRoom {
 
     /**
      * Checks the role of the sender and returns true if the given presence should be broadcasted
-     * 
+     *
      * @param presence The presence to check
      * @return true if the presence should be broadcast to the rest of the room
      */
@@ -1218,7 +1232,7 @@ public class LocalMUCRoom implements MUCRoom {
      * nothing if the given jid is not present in the room. If the user has joined the room from
      * several client resources, all his/her occupants' presences will be updated.
      *
-     * @param bareJID the bare jid of the user to update his/her role.
+     * @param jid the bare jid of the user to update his/her role.
      * @param newAffiliation the new affiliation for the JID.
      * @param newRole the new role for the JID.
      * @return the list of updated presences of all the client resources that the client used to
@@ -1230,7 +1244,8 @@ public class LocalMUCRoom implements MUCRoom {
             throws NotAllowedException {
         List<Presence> presences = new ArrayList<Presence>();
         // Get all the roles (i.e. occupants) of this user based on his/her bare JID
-        List<MUCRole> roles = occupantsByBareJID.get(jid.toBareJID());
+        JID bareJID = jid.asBareJID();
+		List<MUCRole> roles = occupantsByBareJID.get(bareJID);
         if (roles == null) {
             return presences;
         }
@@ -1303,16 +1318,12 @@ public class LocalMUCRoom implements MUCRoom {
         return null;
     }
 
-    public void addFirstOwner(String bareJID) {
-        owners.add(bareJID);
-    }
-
-    @Deprecated
-    public List<Presence> addOwner(String bareJID, MUCRole sendRole) throws ForbiddenException {
-        return addOwner(new JID(bareJID), sendRole);
+    public void addFirstOwner(JID bareJID) {
+        owners.add( bareJID.asBareJID() );
     }
 
     public List<Presence> addOwner(JID jid, MUCRole sendRole) throws ForbiddenException {
+        final JID bareJID = jid.asBareJID();
         lock.writeLock().lock();
         try {
             MUCRole.Affiliation oldAffiliation = MUCRole.Affiliation.none;
@@ -1320,25 +1331,25 @@ public class LocalMUCRoom implements MUCRoom {
                 throw new ForbiddenException();
             }
             // Check if user is already an owner
-            if (owners.contains(jid.toBareJID())) {
+			if (owners.contains(bareJID)) {
                 // Do nothing
                 return Collections.emptyList();
             }
-            owners.add(jid.toBareJID());
+            owners.add(bareJID);
             // Remove the user from other affiliation lists
-            if (removeAdmin(jid.toBareJID())) {
+            if (removeAdmin(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.admin;
             }
-            else if (removeMember(jid.toBareJID())) {
+            else if (removeMember(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.member;
             }
-            else if (removeOutcast(jid.toBareJID())) {
+            else if (removeOutcast(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.outcast;
             }
             // Update the DB if the room is persistent
-            MUCPersistenceManager.saveAffiliationToDB(
+            provider.saveAffiliationToDB(
                 this,
-                jid.toBareJID(),
+                bareJID,
                 null,
                 MUCRole.Affiliation.owner,
                 oldAffiliation);
@@ -1357,18 +1368,13 @@ public class LocalMUCRoom implements MUCRoom {
         }
     }
 
-    private boolean removeOwner(String bareJID) {
-        return owners.remove(bareJID);
-    }
-
-    @Deprecated
-    public List<Presence> addAdmin(String bareJID, MUCRole sendRole) throws ForbiddenException,
-    ConflictException {
-    	return addAdmin(new JID(bareJID), sendRole);
+    private boolean removeOwner(JID jid) {
+        return owners.remove(jid.asBareJID());
     }
 
     public List<Presence> addAdmin(JID jid, MUCRole sendRole) throws ForbiddenException,
             ConflictException {
+    	final JID bareJID = jid.asBareJID();
         lock.writeLock().lock();
         try {
             MUCRole.Affiliation oldAffiliation = MUCRole.Affiliation.none;
@@ -1376,29 +1382,29 @@ public class LocalMUCRoom implements MUCRoom {
                 throw new ForbiddenException();
             }
             // Check that the room always has an owner
-            if (owners.contains(jid.toBareJID()) && owners.size() == 1) {
+            if (owners.contains(bareJID) && owners.size() == 1) {
                 throw new ConflictException();
             }
             // Check if user is already an admin
-            if (admins.contains(jid.toBareJID())) {
+            if (admins.contains(bareJID)) {
                 // Do nothing
                 return Collections.emptyList();
             }
-            admins.add(jid.toBareJID());
+            admins.add(bareJID);
             // Remove the user from other affiliation lists
-            if (removeOwner(jid.toBareJID())) {
+            if (removeOwner(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.owner;
             }
-            else if (removeMember(jid.toBareJID())) {
+            else if (removeMember(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.member;
             }
-            else if (removeOutcast(jid.toBareJID())) {
+            else if (removeOutcast(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.outcast;
             }
             // Update the DB if the room is persistent
-            MUCPersistenceManager.saveAffiliationToDB(
+            provider.saveAffiliationToDB(
                 this,
-                jid.toBareJID(),
+                bareJID,
                 null,
                 MUCRole.Affiliation.admin,
                 oldAffiliation);
@@ -1417,21 +1423,16 @@ public class LocalMUCRoom implements MUCRoom {
         }
     }
 
-    private boolean removeAdmin(String bareJID) {
-        return admins.remove(bareJID);
-    }
-
-    @Deprecated
-    public List<Presence> addMember(String bareJID, String nickname, MUCRole sendRole)
-            throws ForbiddenException, ConflictException {
-        return addMember(new JID(bareJID), nickname, sendRole);
+    private boolean removeAdmin(JID bareJID) {
+        return admins.remove( bareJID.asBareJID() );
     }
 
     public List<Presence> addMember(JID jid, String nickname, MUCRole sendRole)
             throws ForbiddenException, ConflictException {
+    	final JID bareJID = jid.asBareJID();
         lock.writeLock().lock();
         try {
-            MUCRole.Affiliation oldAffiliation = (members.containsKey(jid.toBareJID()) ?
+            MUCRole.Affiliation oldAffiliation = (members.containsKey(bareJID) ?
                     MUCRole.Affiliation.member : MUCRole.Affiliation.none);
             if (isMembersOnly()) {
                 if (!canOccupantsInvite()) {
@@ -1449,31 +1450,31 @@ public class LocalMUCRoom implements MUCRoom {
             }
             // Check if the desired nickname is already reserved for another member
             if (nickname != null && nickname.trim().length() > 0 && members.containsValue(nickname)) {
-                if (!nickname.equals(members.get(jid.toBareJID()))) {
+                if (!nickname.equals(members.get(bareJID))) {
                     throw new ConflictException();
                 }
             }
             // Check that the room always has an owner
-            if (owners.contains(jid.toBareJID()) && owners.size() == 1) {
+            if (owners.contains(bareJID) && owners.size() == 1) {
                 throw new ConflictException();
             }
             // Associate the reserved nickname with the bareJID. If nickname is null then associate an
             // empty string
-            members.put(jid.toBareJID(), (nickname == null ? "" : nickname));
+            members.put(bareJID, (nickname == null ? "" : nickname));
             // Remove the user from other affiliation lists
-            if (removeOwner(jid.toBareJID())) {
+            if (removeOwner(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.owner;
             }
-            else if (removeAdmin(jid.toBareJID())) {
+            else if (removeAdmin(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.admin;
             }
-            else if (removeOutcast(jid.toBareJID())) {
+            else if (removeOutcast(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.outcast;
             }
             // Update the DB if the room is persistent
-            MUCPersistenceManager.saveAffiliationToDB(
+            provider.saveAffiliationToDB(
                 this,
-                jid.toBareJID(),
+                bareJID,
                 nickname,
                 MUCRole.Affiliation.member,
                 oldAffiliation);
@@ -1494,20 +1495,16 @@ public class LocalMUCRoom implements MUCRoom {
         }
     }
 
-    private boolean removeMember(String bareJID) {
-        boolean answer = members.containsKey(bareJID);
+    private boolean removeMember(JID jid) {
+        final JID bareJID = jid.asBareJID();
+		boolean answer = members.containsKey(bareJID);
         members.remove(bareJID);
         return answer;
     }
 
-    @Deprecated
-    public List<Presence> addOutcast(String bareJID, String reason, MUCRole senderRole)
-            throws NotAllowedException, ForbiddenException, ConflictException {
-        return addOutcast(new JID(bareJID), reason, senderRole);
-    }
-
     public List<Presence> addOutcast(JID jid, String reason, MUCRole senderRole)
             throws NotAllowedException, ForbiddenException, ConflictException {
+        final JID bareJID = jid.asBareJID();
         lock.writeLock().lock();
         try {
             MUCRole.Affiliation oldAffiliation = MUCRole.Affiliation.none;
@@ -1516,31 +1513,31 @@ public class LocalMUCRoom implements MUCRoom {
                 throw new ForbiddenException();
             }
             // Check that the room always has an owner
-            if (owners.contains(jid.toBareJID()) && owners.size() == 1) {
+            if (owners.contains(bareJID) && owners.size() == 1) {
                 throw new ConflictException();
             }
             // Check if user is already an outcast
-            if (outcasts.contains(jid.toBareJID())) {
+            if (outcasts.contains(bareJID)) {
                 // Do nothing
                 return Collections.emptyList();
             }
 
             // Update the affiliation lists
-            outcasts.add(jid.toBareJID());
+            outcasts.add(bareJID);
             // Remove the user from other affiliation lists
-            if (removeOwner(jid.toBareJID())) {
+            if (removeOwner(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.owner;
             }
-            else if (removeAdmin(jid.toBareJID())) {
+            else if (removeAdmin(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.admin;
             }
-            else if (removeMember(jid.toBareJID())) {
+            else if (removeMember(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.member;
             }
             // Update the DB if the room is persistent
-            MUCPersistenceManager.saveAffiliationToDB(
+            provider.saveAffiliationToDB(
                 this,
-                jid.toBareJID(),
+                bareJID,
                 null,
                 MUCRole.Affiliation.outcast,
                 oldAffiliation);
@@ -1575,19 +1572,14 @@ public class LocalMUCRoom implements MUCRoom {
         return updatedPresences;
     }
 
-    private boolean removeOutcast(String bareJID) {
-        return outcasts.remove(bareJID);
-    }
-
-    @Deprecated
-    public List<Presence> addNone(String bareJID, MUCRole senderRole) throws ForbiddenException,
-            ConflictException {
-        return addNone(new JID(bareJID), senderRole);
+    private boolean removeOutcast(JID bareJID) {
+        return outcasts.remove( bareJID.asBareJID() );
     }
 
     public List<Presence> addNone(JID jid, MUCRole senderRole) throws ForbiddenException,
             ConflictException {
-        List<Presence> updatedPresences = null;
+    	final JID bareJID = jid.asBareJID();
+        List<Presence> updatedPresences = Collections.emptyList();
         boolean wasMember = false;
         lock.writeLock().lock();
         try {
@@ -1597,25 +1589,25 @@ public class LocalMUCRoom implements MUCRoom {
                 throw new ForbiddenException();
             }
             // Check that the room always has an owner
-            if (owners.contains(jid.toBareJID()) && owners.size() == 1) {
+            if (owners.contains(bareJID) && owners.size() == 1) {
                 throw new ConflictException();
             }
-            wasMember = members.containsKey(jid.toBareJID()) || admins.contains(jid.toBareJID()) || owners.contains(jid.toBareJID());
+            wasMember = members.containsKey(bareJID) || admins.contains(bareJID) || owners.contains(bareJID);
             // Remove the user from ALL the affiliation lists
-            if (removeOwner(jid.toBareJID())) {
+            if (removeOwner(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.owner;
             }
-            else if (removeAdmin(jid.toBareJID())) {
+            else if (removeAdmin(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.admin;
             }
-            else if (removeMember(jid.toBareJID())) {
+            else if (removeMember(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.member;
             }
-            else if (removeOutcast(jid.toBareJID())) {
+            else if (removeOutcast(bareJID)) {
                 oldAffiliation = MUCRole.Affiliation.outcast;
             }
             // Remove the affiliation of this user from the DB if the room is persistent
-            MUCPersistenceManager.removeAffiliationFromDB(this, jid.toBareJID(), oldAffiliation);
+            provider.removeAffiliationFromDB(this, bareJID, oldAffiliation);
         }
         finally {
             lock.writeLock().unlock();
@@ -1629,7 +1621,7 @@ public class LocalMUCRoom implements MUCRoom {
             else {
                 newRole = isModerated() ? MUCRole.Role.visitor : MUCRole.Role.participant;
             }
-            updatedPresences = changeOccupantAffiliation(jid, MUCRole.Affiliation.none, newRole);
+            updatedPresences = changeOccupantAffiliation(bareJID, MUCRole.Affiliation.none, newRole);
             if (isMembersOnly() && wasMember) {
                 // If the room is members-only, remove the user from the room including a status
                 // code of 321 to indicate that the user was removed because of an affiliation
@@ -1656,6 +1648,7 @@ public class LocalMUCRoom implements MUCRoom {
         }
         catch (NotAllowedException e) {
             // We should never receive this exception....in theory
+        	Log.error(e.getMessage(), e);
         }
         return updatedPresences;
     }
@@ -1784,7 +1777,7 @@ public class LocalMUCRoom implements MUCRoom {
             }
             // Set the new subject to the room
             subject = packet.getSubject();
-            MUCPersistenceManager.updateRoomSubject(this);
+            provider.updateRoomSubject(this);
             // Notify all the occupants that the subject has changed
             packet.setFrom(role.getRoleAddress());
             send(packet);
@@ -1891,19 +1884,19 @@ public class LocalMUCRoom implements MUCRoom {
         return roomHistory;
     }
 
-    public Collection<String> getOwners() {
+    public Collection<JID> getOwners() {
         return Collections.unmodifiableList(owners);
     }
 
-    public Collection<String> getAdmins() {
+    public Collection<JID> getAdmins() {
         return Collections.unmodifiableList(admins);
     }
 
-    public Collection<String> getMembers() {
+    public Collection<JID> getMembers() {
         return Collections.unmodifiableMap(members).keySet();
     }
 
-    public Collection<String> getOutcasts() {
+    public Collection<JID> getOutcasts() {
         return Collections.unmodifiableList(outcasts);
     }
 
@@ -2241,7 +2234,7 @@ public class LocalMUCRoom implements MUCRoom {
         else {
             this.lockedTime = 0;
         }
-        MUCPersistenceManager.updateRoomLock(this);
+        provider.updateRoomLock(this);
     }
 
     /**
@@ -2252,7 +2245,7 @@ public class LocalMUCRoom implements MUCRoom {
      *
      * @param lockedTime the date when the room was locked.
      */
-    void setLockedDate(Date lockedTime) {
+    public void setLockedDate(Date lockedTime) {
         this.lockedTime = lockedTime.getTime();
     }
 
@@ -2264,27 +2257,29 @@ public class LocalMUCRoom implements MUCRoom {
      *
      * @return the date when the room was locked.
      */
-    Date getLockedDate() {
+    public Date getLockedDate() {
         return new Date(lockedTime);
     }
 
-    public List<Presence> addAdmins(List<String> newAdmins, MUCRole senderRole)
+    public List<Presence> addAdmins(List<JID> newAdmins, MUCRole senderRole)
             throws ForbiddenException, ConflictException {
         List<Presence> answer = new ArrayList<Presence>(newAdmins.size());
-        for (String newAdmin : newAdmins) {
-            if (newAdmin.trim().length() > 0 && !admins.contains(newAdmin)) {
-                answer.addAll(addAdmin(newAdmin, senderRole));
+        for (JID newAdmin : newAdmins) {
+        	final JID bareJID = newAdmin.asBareJID();
+            if (!admins.contains(bareJID)) {
+                answer.addAll(addAdmin(bareJID, senderRole));
             }
         }
         return answer;
     }
 
-    public List<Presence> addOwners(List<String> newOwners, MUCRole senderRole)
+    public List<Presence> addOwners(List<JID> newOwners, MUCRole senderRole)
             throws ForbiddenException {
         List<Presence> answer = new ArrayList<Presence>(newOwners.size());
-        for (String newOwner : newOwners) {
-            if (newOwner.trim().length() > 0 && !owners.contains(newOwner)) {
-                answer.addAll(addOwner(new JID(newOwner), senderRole));
+        for (JID newOwner : newOwners) {
+        	final JID bareJID = newOwner.asBareJID();
+            if (!owners.contains(newOwner)) {
+                answer.addAll(addOwner(bareJID, senderRole));
             }
         }
         return answer;
@@ -2292,13 +2287,13 @@ public class LocalMUCRoom implements MUCRoom {
 
     public void saveToDB() {
         // Make the room persistent
-        MUCPersistenceManager.saveToDB(this);
+        provider.saveToDB(this);
         if (!savedToDB) {
             // Set that the room is now in the DB
             savedToDB = true;
             // Save the existing room owners to the DB
-            for (String owner : owners) {
-                MUCPersistenceManager.saveAffiliationToDB(
+            for (JID owner : owners) {
+            	provider.saveAffiliationToDB(
                     this,
                     owner,
                     null,
@@ -2306,8 +2301,8 @@ public class LocalMUCRoom implements MUCRoom {
                     MUCRole.Affiliation.none);
             }
             // Save the existing room admins to the DB
-            for (String admin : admins) {
-                MUCPersistenceManager.saveAffiliationToDB(
+            for (JID admin : admins) {
+            	provider.saveAffiliationToDB(
                     this,
                     admin,
                     null,
@@ -2315,13 +2310,13 @@ public class LocalMUCRoom implements MUCRoom {
                     MUCRole.Affiliation.none);
             }
             // Save the existing room members to the DB
-            for (String bareJID : members.keySet()) {
-                MUCPersistenceManager.saveAffiliationToDB(this, bareJID, members.get(bareJID),
+            for (JID bareJID : members.keySet()) {
+            	provider.saveAffiliationToDB(this, bareJID, members.get(bareJID),
                         MUCRole.Affiliation.member, MUCRole.Affiliation.none);
             }
             // Save the existing room outcasts to the DB
-            for (String outcast : outcasts) {
-                MUCPersistenceManager.saveAffiliationToDB(
+            for (JID outcast : outcasts) {
+            	provider.saveAffiliationToDB(
                     this,
                     outcast,
                     null,
@@ -2335,10 +2330,10 @@ public class LocalMUCRoom implements MUCRoom {
         ExternalizableUtil.getInstance().writeSafeUTF(out, name);
         ExternalizableUtil.getInstance().writeLong(out, startTime);
         ExternalizableUtil.getInstance().writeLong(out, lockedTime);
-        ExternalizableUtil.getInstance().writeStringList(out, owners);
-        ExternalizableUtil.getInstance().writeStringList(out, admins);
-        ExternalizableUtil.getInstance().writeStringMap(out, members);
-        ExternalizableUtil.getInstance().writeStringList(out, outcasts);
+        ExternalizableUtil.getInstance().writeSerializableCollection(out, owners);
+        ExternalizableUtil.getInstance().writeSerializableCollection(out, admins);
+        ExternalizableUtil.getInstance().writeSerializableMap(out, members);
+        ExternalizableUtil.getInstance().writeSerializableCollection(out, outcasts);
         ExternalizableUtil.getInstance().writeSafeUTF(out, naturalLanguageName);
         ExternalizableUtil.getInstance().writeSafeUTF(out, description);
         ExternalizableUtil.getInstance().writeBoolean(out, canOccupantsChangeSubject);
@@ -2371,10 +2366,10 @@ public class LocalMUCRoom implements MUCRoom {
         name = ExternalizableUtil.getInstance().readSafeUTF(in);
         startTime = ExternalizableUtil.getInstance().readLong(in);
         lockedTime = ExternalizableUtil.getInstance().readLong(in);
-        owners.addAll(ExternalizableUtil.getInstance().readStringList(in));
-        admins.addAll(ExternalizableUtil.getInstance().readStringList(in));
-        members.putAll(ExternalizableUtil.getInstance().readStringMap(in));
-        outcasts.addAll(ExternalizableUtil.getInstance().readStringList(in));
+        ExternalizableUtil.getInstance().readSerializableCollection(in, owners, getClass().getClassLoader());
+        ExternalizableUtil.getInstance().readSerializableCollection(in, admins, getClass().getClassLoader());
+        ExternalizableUtil.getInstance().readSerializableMap(in, members, getClass().getClassLoader());
+        ExternalizableUtil.getInstance().readSerializableCollection(in, outcasts, getClass().getClassLoader());
         naturalLanguageName = ExternalizableUtil.getInstance().readSafeUTF(in);
         description = ExternalizableUtil.getInstance().readSafeUTF(in);
         canOccupantsChangeSubject = ExternalizableUtil.getInstance().readBoolean(in);
@@ -2401,7 +2396,9 @@ public class LocalMUCRoom implements MUCRoom {
         savedToDB = ExternalizableUtil.getInstance().readBoolean(in);
         String subdomain = ExternalizableUtil.getInstance().readSafeUTF(in);
         mucService = XMPPServer.getInstance().getMultiUserChatManager().getMultiUserChatService(subdomain);
-        if (mucService == null) throw new IllegalArgumentException("MUC service not found for subdomain: " + subdomain);
+        if (mucService == null) {
+			throw new IllegalArgumentException("MUC service not found for subdomain: " + subdomain);
+		}
         roomHistory = new MUCRoomHistory(this, new HistoryStrategy(mucService.getHistoryStrategy()));
 
         PacketRouter packetRouter = XMPPServer.getInstance().getPacketRouter();

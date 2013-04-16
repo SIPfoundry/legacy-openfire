@@ -20,6 +20,11 @@
 
 package org.jivesoftware.openfire.handler;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
 import org.dom4j.Element;
 import org.jivesoftware.openfire.IQHandlerInfo;
 import org.jivesoftware.openfire.XMPPServer;
@@ -28,18 +33,14 @@ import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.event.UserEventListener;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
-import org.jivesoftware.openfire.privacy.PrivacyListProvider;
+import org.jivesoftware.openfire.provider.PrivacyListProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserManager;
 import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.PacketError;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 /**
  * IQPrivacyHandler is responsible for handling privacy lists.
@@ -51,7 +52,7 @@ public class IQPrivacyHandler extends IQHandler
 
     private IQHandlerInfo info;
     private PrivacyListManager manager = PrivacyListManager.getInstance();
-    private PrivacyListProvider provider = new PrivacyListProvider();
+    private PrivacyListProvider provider = ProviderFactory.getPrivacyListProvider();
 
     public IQPrivacyHandler() {
         super("Blocking Communication Handler");
@@ -421,16 +422,16 @@ public class IQPrivacyHandler extends IQHandler
         return features.iterator();
     }
 
-    public void userCreated(User user, Map params) {
+    public void userCreated(User user, Map<String, Object> params) {
         //Do nothing
     }
 
-    public void userDeleting(User user, Map params) {
+    public void userDeleting(User user, Map<String, Object> params) {
         // Delete privacy lists owned by the user being deleted
         manager.deletePrivacyLists(user.getUsername());
     }
 
-    public void userModified(User user, Map params) {
+    public void userModified(User user, Map<String, Object> params) {
         //Do nothing
     }
 

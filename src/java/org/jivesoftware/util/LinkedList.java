@@ -28,13 +28,13 @@ package org.jivesoftware.util;
  *
  * @author Jive Software
  */
-public class LinkedList {
+public class LinkedList<T> {
 
     /**
      * The root of the list keeps a reference to both the first and last
      * elements of the list.
      */
-    private LinkedListNode head = new LinkedListNode("head", null, null);
+    private final LinkedListNode<T> head = new LinkedListNode<T>(null, null, null);
 
     /**
      * Creates a new linked list.
@@ -48,8 +48,8 @@ public class LinkedList {
      *
      * @return the first element of the list.
      */
-    public LinkedListNode getFirst() {
-        LinkedListNode node = head.next;
+    public LinkedListNode<T> getFirst() {
+        LinkedListNode<T> node = head.next;
         if (node == head) {
             return null;
         }
@@ -61,8 +61,8 @@ public class LinkedList {
      *
      * @return the last element of the list.
      */
-    public LinkedListNode getLast() {
-        LinkedListNode node = head.previous;
+    public LinkedListNode<T> getLast() {
+        LinkedListNode<T> node = head.previous;
         if (node == head) {
             return null;
         }
@@ -74,7 +74,7 @@ public class LinkedList {
      *
      * @param node the node to add to the beginning of the list.
      */
-    public LinkedListNode addFirst(LinkedListNode node) {
+    public LinkedListNode<T> addFirst(LinkedListNode<T> node) {
         node.next = head.next;
         node.previous = head;
         node.previous.next = node;
@@ -89,8 +89,8 @@ public class LinkedList {
      * @param object the object to add to the beginning of the list.
      * @return the node created to wrap the object.
      */
-    public LinkedListNode addFirst(Object object) {
-        LinkedListNode node = new LinkedListNode(object, head.next, head);
+    public LinkedListNode<T> addFirst(T object) {
+        LinkedListNode<T> node = new LinkedListNode<T>(object, head.next, head);
         node.previous.next = node;
         node.next.previous = node;
         return node;
@@ -103,8 +103,8 @@ public class LinkedList {
      * @param object the object to add to the end of the list.
      * @return the node created to wrap the object.
      */
-    public LinkedListNode addLast(Object object) {
-        LinkedListNode node = new LinkedListNode(object, head, head.previous);
+    public LinkedListNode<T> addLast(T object) {
+        LinkedListNode<T> node = new LinkedListNode<T>(object, head, head.previous);
         node.previous.next = node;
         node.next.previous = node;
         return node;
@@ -115,7 +115,7 @@ public class LinkedList {
      */
     public void clear() {
         //Remove all references in the list.
-        LinkedListNode node = getLast();
+        LinkedListNode<T> node = getLast();
         while (node != null) {
             node.remove();
             node = getLast();
@@ -133,7 +133,7 @@ public class LinkedList {
      */
     @Override
 	public String toString() {
-        LinkedListNode node = head.next;
+        LinkedListNode<T> node = head.next;
         StringBuilder buf = new StringBuilder();
         while (node != head) {
             buf.append(node.toString()).append(", ");

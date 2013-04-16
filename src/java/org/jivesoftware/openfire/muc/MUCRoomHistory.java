@@ -22,15 +22,13 @@ package org.jivesoftware.openfire.muc;
 
 import org.dom4j.Element;
 import org.jivesoftware.openfire.user.UserNotFoundException;
-import org.jivesoftware.util.FastDateFormat;
-import org.jivesoftware.util.JiveConstants;
+import org.jivesoftware.util.XMPPDateTimeFormat;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
 
 import java.util.Date;
 import java.util.Iterator;
 import java.util.ListIterator;
-import java.util.TimeZone;
 
 /**
  * Represent the data model for one <code>MUCRoom</code> history. Including chat transcript,
@@ -39,11 +37,6 @@ import java.util.TimeZone;
  * @author Gaston Dombiak
  */
 public final class MUCRoomHistory {
-
-    private static final FastDateFormat UTC_FORMAT = FastDateFormat
-            .getInstance(JiveConstants.XMPP_DATETIME_FORMAT, TimeZone.getTimeZone("UTC"));
-    private static final FastDateFormat UTC_FORMAT_OLD = FastDateFormat
-            .getInstance(JiveConstants.XMPP_DELAY_DATETIME_FORMAT, TimeZone.getTimeZone("UTC"));
 
     private MUCRoom room;
 
@@ -84,12 +77,10 @@ public final class MUCRoomHistory {
         if (isNonAnonymousRoom != room.canAnyoneDiscoverJID()) {
             isNonAnonymousRoom = room.canAnyoneDiscoverJID();
             // Update the "from" attribute of the delay information in the history
-            Message message;
-            Element delayElement;
             // TODO Make this update in a separate thread
-            for (Iterator it = getMessageHistory(); it.hasNext();) {
-                message = (Message) it.next();
-                delayElement = message.getChildElement("x", "jabber:x:delay");
+            for (Iterator<Message> it = getMessageHistory(); it.hasNext();) {
+                Message message = it.next();
+                Element delayElement = message.getChildElement("x", "jabber:x:delay");
                 if (room.canAnyoneDiscoverJID()) {
                     // Set the Full JID as the "from" attribute
                     try {
@@ -112,8 +103,8 @@ public final class MUCRoomHistory {
         Element delayInformation = packetToAdd.addChildElement("delay", "urn:xmpp:delay");
         Element delayInformationOld = packetToAdd.addChildElement("x", "jabber:x:delay");
         Date current = new Date();
-        delayInformation.addAttribute("stamp", UTC_FORMAT.format(current));
-        delayInformationOld.addAttribute("stamp", UTC_FORMAT_OLD.format(current));
+        delayInformation.addAttribute("stamp", XMPPDateTimeFormat.format(current));
+        delayInformationOld.addAttribute("stamp", XMPPDateTimeFormat.formatOld(current));
         if (room.canAnyoneDiscoverJID()) {
             // Set the Full JID as the "from" attribute
             try {
@@ -133,7 +124,7 @@ public final class MUCRoomHistory {
         historyStrategy.addMessage(packetToAdd);
     }
 
-    public Iterator getMessageHistory() {
+    public Iterator<Message> getMessageHistory() {
         return historyStrategy.getMessageHistory();
     }
 
@@ -144,7 +135,7 @@ public final class MUCRoomHistory {
      * 
      * @return A list iterator of Message objects positioned at the end of the list.
      */
-    public ListIterator getReverseMessageHistory() {
+    public ListIterator<Message> getReverseMessageHistory() {
         return historyStrategy.getReverseMessageHistory();
     }
 
@@ -180,8 +171,8 @@ public final class MUCRoomHistory {
         // Add the delay information to the message
         Element delayInformation = message.addChildElement("delay", "urn:xmpp:delay");
         Element delayInformationOld = message.addChildElement("x", "jabber:x:delay");
-        delayInformation.addAttribute("stamp", UTC_FORMAT.format(sentDate));
-        delayInformationOld.addAttribute("stamp", UTC_FORMAT_OLD.format(sentDate));
+        delayInformation.addAttribute("stamp", XMPPDateTimeFormat.format(sentDate));
+        delayInformationOld.addAttribute("stamp", XMPPDateTimeFormat.formatOld(sentDate));
         if (room.canAnyoneDiscoverJID()) {
             // Set the Full JID as the "from" attribute
             delayInformation.addAttribute("from", senderJID);

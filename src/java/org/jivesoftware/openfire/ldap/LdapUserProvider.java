@@ -37,11 +37,11 @@ import javax.naming.directory.Attributes;
 import javax.naming.directory.DirContext;
 
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserCollection;
 import org.jivesoftware.openfire.user.UserNotFoundException;
-import org.jivesoftware.openfire.user.UserProvider;
 import org.jivesoftware.util.JiveConstants;
 import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;

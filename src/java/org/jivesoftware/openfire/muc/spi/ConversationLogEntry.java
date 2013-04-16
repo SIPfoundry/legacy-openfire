@@ -23,37 +23,39 @@ package org.jivesoftware.openfire.muc.spi;
 import java.util.Date;
 
 import org.jivesoftware.openfire.muc.MUCRoom;
-import org.xmpp.packet.Message;
 import org.xmpp.packet.JID;
+import org.xmpp.packet.Message;
 
 /**
  * Represents an entry in the conversation log of a room. An entry basically obtains the necessary
  * information to log from the message adding a timestamp of when the message was sent to the room.
  * 
+ * Instances of this class are immutable, and therefor thread safe.
+ * 
  * @author Gaston Dombiak
  */
-class ConversationLogEntry {
+public class ConversationLogEntry {
 
-    private Date date;
+    private final Date date;
 
-    private String subject;
+    private final String subject;
 
-    private String body;
+    private final String body;
 
     private JID sender;
-    
+
     private String nickname;
-    
+
     private long roomID;
 
     /**
      * Creates a new ConversationLogEntry that registers that a given message was sent to a given
      * room on a given date.
-     * 
+     *
      * @param date the date when the message was sent to the room.
      * @param room the room that received the message.
      * @param message the message to log as part of the conversation in the room.
-     * @param sender the real XMPPAddress of the sender (e.g. john@example.org). 
+     * @param sender the real XMPPAddress of the sender (e.g. john@example.org).
      */
     public ConversationLogEntry(Date date, MUCRoom room, Message message, JID sender) {
         this.date = date;
@@ -66,7 +68,7 @@ class ConversationLogEntry {
 
     /**
      * Returns the body of the logged message.
-     * 
+     *
      * @return the body of the logged message.
      */
     public String getBody() {
@@ -75,7 +77,7 @@ class ConversationLogEntry {
 
     /**
      * Returns the XMPP address of the logged message's sender.
-     * 
+     *
      * @return the XMPP address of the logged message's sender.
      */
     public JID getSender() {
@@ -84,7 +86,7 @@ class ConversationLogEntry {
 
     /**
      * Returns the nickname that the user had at the moment that the message was sent to the room.
-     * 
+     *
      * @return the nickname that the user had at the moment that the message was sent to the room.
      */
     public String getNickname() {
@@ -93,7 +95,7 @@ class ConversationLogEntry {
 
     /**
      * Returns the subject of the logged message.
-     * 
+     *
      * @return the subject of the logged message.
      */
     public String getSubject() {
@@ -102,7 +104,7 @@ class ConversationLogEntry {
 
     /**
      * Returns the date when the logged message was sent to the room.
-     * 
+     *
      * @return the date when the logged message was sent to the room.
      */
     public Date getDate() {
@@ -111,7 +113,7 @@ class ConversationLogEntry {
 
     /**
      * Returns the ID of the room where the message was sent.
-     * 
+     *
      * @return the ID of the room where the message was sent.
      */
     public long getRoomID() {

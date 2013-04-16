@@ -20,20 +20,35 @@
 
 package org.jivesoftware.openfire.pubsub;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 import org.dom4j.Element;
+import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.cluster.ClusterManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
+import org.jivesoftware.openfire.pubsub.cluster.AffiliationTask;
+import org.jivesoftware.openfire.pubsub.cluster.CancelSubscriptionTask;
+import org.jivesoftware.openfire.pubsub.cluster.ModifySubscriptionTask;
+import org.jivesoftware.openfire.pubsub.cluster.NewSubscriptionTask;
+import org.jivesoftware.openfire.pubsub.cluster.RemoveNodeTask;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.StringUtils;
+import org.jivesoftware.util.cache.CacheFactory;
 import org.xmpp.forms.DataForm;
 import org.xmpp.forms.FormField;
 import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A virtual location to which information can be published and from which event
@@ -43,6 +58,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @author Matt Tucker
  */
 public abstract class Node {
+	public static final String PUBSUB_SVC_ID = XMPPServer.getInstance().getPubSubModule().getServiceID();
 
     /**
      * Reference to the publish and subscribe service.
@@ -177,6 +193,11 @@ public abstract class Node {
      */
     protected Map<String, NodeSubscription> subscriptionsByJID =
             new ConcurrentHashMap<String, NodeSubscription>();
+
+    /**
+     * Provider for underlying storage
+     */
+    protected final PubSubProvider provider = ProviderFactory.getPubsubProvider();
 
     Node(PubSubService service, CollectionNode parent, String nodeID, JID creator) {
         this.service = service;
@@ -348,8 +369,12 @@ public abstract class Node {
 
         if (savedToDB) {
             // Add or update the affiliate in the database
-            PubSubPersistenceManager.saveAffiliation(service, this, affiliate, created);
+            provider.saveAffiliation(service, this, affiliate, created);
         }
+
+        // Update the other members with the new affiliation
+        CacheFactory.doClusterTask(new AffiliationTask(this, jid, affiliation));
+
         return affiliate;
     }
 
@@ -367,7 +392,7 @@ public abstract class Node {
         affiliates.remove(affiliate);
         if (savedToDB) {
             // Remove the affiliate from the database
-            PubSubPersistenceManager.removeAffiliation(service, this, affiliate);
+            provider.removeAffiliation(service, this, affiliate);
         }
     }
 
@@ -408,6 +433,20 @@ public abstract class Node {
      */
     Collection<NodeSubscription> getSubscriptions() {
         return subscriptionsByID.values();
+    }
+
+    /**
+     * Returns all subscriptions to the node. If multiple subscriptions are enabled,
+     * this method returns the subscriptions by <tt>subId</tt>, otherwise it returns
+     * the subscriptions by {@link JID}.
+     *
+     * @return All subscriptions to the node.
+     */
+    public Collection<NodeSubscription> getAllSubscriptions() {
+        if (isMultipleSubscriptionsEnabled()) {
+            return subscriptionsByID.values();
+        }
+        return subscriptionsByJID.values();
     }
 
     /**
@@ -628,6 +667,18 @@ public abstract class Node {
                         }
                     }
                 }
+                else if ("pubsub#collection".equals(field.getVariable())) {
+                    // Set the parent collection node
+                    values = field.getValues();
+                    String newParent = values.size() > 0 ? values.get(0) : " ";
+                    Node newParentNode = service.getNode(newParent);
+
+                    if (!(newParentNode instanceof CollectionNode))
+                    {
+                    	throw new NotAcceptableException("Specified node in field pubsub#collection [" + newParent + "] " + ((newParentNode == null) ? "does not exist" : "is not a collection node"));
+                    }
+                    changeParent((CollectionNode) newParentNode);
+                }
                 else {
                     // Let subclasses be configured by specified fields
                     configure(field);
@@ -649,7 +700,7 @@ public abstract class Node {
                     addOwner(jid);
                 }
             }
-            // TODO Before removing owner or admin check if user was changed from admin to owner or vice versa. This way his susbcriptions are not going to be deleted.
+            // TODO Before removing owner or admin check if user was changed from admin to owner or vice versa. This way his subscriptions are not going to be deleted.
             // Set the new list of publishers
             FormField publisherField = completedForm.getField("pubsub#publisher");
             if (publisherField != null) {
@@ -708,8 +759,9 @@ public abstract class Node {
      * fields specific to the node type.
      *
      * @param field the form field specific to the node type.
+     * @throws NotAcceptableException if field cannot be configured because of invalid data.
      */
-    abstract void configure(FormField field);
+    protected abstract void configure(FormField field) throws NotAcceptableException;
 
     /**
      * Node configuration was changed based on the completed form. Subclasses may implement
@@ -836,6 +888,24 @@ public abstract class Node {
             formField.setLabel(LocaleUtils.getLocalizedString("pubsub.form.conf.description"));
         }
         formField.addValue(description);
+
+        formField = form.addField();
+        formField.setVariable("pubsub#node_type");
+        if (isEditing) {
+            formField.setType(FormField.Type.text_single);
+            formField.setLabel(LocaleUtils.getLocalizedString("pubsub.form.conf.node_type"));
+        }
+
+        formField = form.addField();
+        formField.setVariable("pubsub#collection");
+        if (isEditing) {
+            formField.setType(FormField.Type.text_single);
+            formField.setLabel(LocaleUtils.getLocalizedString("pubsub.form.conf.collection"));
+        }
+
+        if (!parent.isRootCollectionNode()) {
+        	formField.addValue(parent.getNodeID());
+        }
 
         formField = form.addField();
         formField.setVariable("pubsub#subscribe");
@@ -1127,10 +1197,19 @@ public abstract class Node {
         }
         // Check if we should try again but using the bare JID
         if (user.getResource() != null) {
-            user = new JID(user.toBareJID());
+            user = user.asBareJID();
             return isAdmin(user);
         }
         return false;
+    }
+
+    /**
+     * Returns the {@link PubSubService} to which this node belongs.
+     *
+     * @return the pubsub service.
+     */
+    public PubSubService getService() {
+        return service;
     }
 
     /**
@@ -1218,13 +1297,11 @@ public abstract class Node {
                 // Node sends notifications only to only users so return true
                 return true;
             }
-            else {
-                // Check if there is a subscription configured to only send notifications
-                // based on the user presence
-                for (NodeSubscription subscription : subscriptions) {
-                    if (!subscription.getPresenceStates().isEmpty()) {
-                        return true;
-                    }
+            // Check if there is a subscription configured to only send notifications
+            // based on the user presence
+            for (NodeSubscription subscription : subscriptions) {
+                if (!subscription.getPresenceStates().isEmpty()) {
+                    return true;
                 }
             }
         }
@@ -1330,7 +1407,7 @@ public abstract class Node {
      *
      * @param groupName the new roster group that is allowed to subscribe and retrieve items.
      */
-    void addAllowedRosterGroup(String groupName) {
+    public void addAllowedRosterGroup(String groupName) {
         rosterGroupsAllowed.add(groupName);
     }
 
@@ -1338,7 +1415,7 @@ public abstract class Node {
         return Collections.unmodifiableCollection(replyRooms);
     }
 
-    void addReplyRoom(JID roomJID) {
+    public void addReplyRoom(JID roomJID) {
         replyRooms.add(roomJID);
     }
 
@@ -1346,7 +1423,7 @@ public abstract class Node {
         return Collections.unmodifiableCollection(replyTo);
     }
 
-    void addReplyTo(JID entity) {
+    public void addReplyTo(JID entity) {
         replyTo.add(entity);
     }
 
@@ -1445,7 +1522,7 @@ public abstract class Node {
      *
      * @param user the JID of the new user.
      */
-    void addContact(JID user) {
+    public void addContact(JID user) {
         contacts.add(user);
     }
 
@@ -1492,11 +1569,11 @@ public abstract class Node {
      *
      * @param deliverPayloads true if event notifications will include payloads.
      */
-    void setPayloadDelivered(boolean deliverPayloads) {
+    public void setPayloadDelivered(boolean deliverPayloads) {
         this.deliverPayloads = deliverPayloads;
     }
 
-    void setReplyPolicy(ItemReplyPolicy replyPolicy) {
+    public void setReplyPolicy(ItemReplyPolicy replyPolicy) {
         this.replyPolicy = replyPolicy;
     }
 
@@ -1506,7 +1583,7 @@ public abstract class Node {
      * @param notifyConfigChanges true if subscribers will be notified when the node
      *        configuration changes.
      */
-    void setNotifiedOfConfigChanges(boolean notifyConfigChanges) {
+    public void setNotifiedOfConfigChanges(boolean notifyConfigChanges) {
         this.notifyConfigChanges = notifyConfigChanges;
     }
 
@@ -1515,7 +1592,7 @@ public abstract class Node {
      *
      * @param notifyDelete true if subscribers will be notified when the node is deleted.
      */
-    void setNotifiedOfDelete(boolean notifyDelete) {
+    public void setNotifiedOfDelete(boolean notifyDelete) {
         this.notifyDelete = notifyDelete;
     }
 
@@ -1525,11 +1602,11 @@ public abstract class Node {
      * @param notifyRetract true if subscribers will be notified when items are removed from
      *        the node.
      */
-    void setNotifiedOfRetract(boolean notifyRetract) {
+    public void setNotifiedOfRetract(boolean notifyRetract) {
         this.notifyRetract = notifyRetract;
     }
 
-    void setPresenceBasedDelivery(boolean presenceBasedDelivery) {
+    public void setPresenceBasedDelivery(boolean presenceBasedDelivery) {
         this.presenceBasedDelivery = presenceBasedDelivery;
     }
 
@@ -1539,7 +1616,7 @@ public abstract class Node {
      * @param publisherModel the publisher model that specifies who is allowed to publish items
      *        to the node.
      */
-    void setPublisherModel(PublisherModel publisherModel) {
+    public void setPublisherModel(PublisherModel publisherModel) {
         this.publisherModel = publisherModel;
     }
 
@@ -1548,7 +1625,7 @@ public abstract class Node {
      *
      * @param subscriptionEnabled true if users are allowed to subscribe and unsubscribe.
      */
-    void setSubscriptionEnabled(boolean subscriptionEnabled) {
+    public void setSubscriptionEnabled(boolean subscriptionEnabled) {
         this.subscriptionEnabled = subscriptionEnabled;
     }
 
@@ -1560,7 +1637,7 @@ public abstract class Node {
      * @param subscriptionConfigurationRequired true if new subscriptions should be
      *        configured to be active.
      */
-    void setSubscriptionConfigurationRequired(boolean subscriptionConfigurationRequired) {
+    public void setSubscriptionConfigurationRequired(boolean subscriptionConfigurationRequired) {
         this.subscriptionConfigurationRequired = subscriptionConfigurationRequired;
     }
 
@@ -1570,7 +1647,7 @@ public abstract class Node {
      * @param accessModel the access model that specifies who is allowed to subscribe and
      *        retrieve items.
      */
-    void setAccessModel(AccessModel accessModel) {
+    public void setAccessModel(AccessModel accessModel) {
         this.accessModel = accessModel;
     }
 
@@ -1581,15 +1658,15 @@ public abstract class Node {
      *
      * @param rosterGroupsAllowed the roster group(s) allowed to subscribe and retrieve items.
      */
-    void setRosterGroupsAllowed(Collection<String> rosterGroupsAllowed) {
+    public void setRosterGroupsAllowed(Collection<String> rosterGroupsAllowed) {
         this.rosterGroupsAllowed = rosterGroupsAllowed;
     }
 
-    void setReplyRooms(Collection<JID> replyRooms) {
+    public void setReplyRooms(Collection<JID> replyRooms) {
         this.replyRooms = replyRooms;
     }
 
-    void setReplyTo(Collection<JID> replyTo) {
+    public void setReplyTo(Collection<JID> replyTo) {
         this.replyTo = replyTo;
     }
 
@@ -1599,7 +1676,7 @@ public abstract class Node {
      *
      * @param payloadType the type of payload data to be provided at the node.
      */
-    void setPayloadType(String payloadType) {
+    public void setPayloadType(String payloadType) {
         this.payloadType = payloadType;
     }
 
@@ -1609,7 +1686,7 @@ public abstract class Node {
      *
      * @param bodyXSLT the URL of an XSL transformation which can be applied to payloads.
      */
-    void setBodyXSLT(String bodyXSLT) {
+    public void setBodyXSLT(String bodyXSLT) {
         this.bodyXSLT = bodyXSLT;
     }
 
@@ -1621,11 +1698,11 @@ public abstract class Node {
      * @param dataformXSLT the URL of an XSL transformation which can be applied to the
      *        payload format.
      */
-    void setDataformXSLT(String dataformXSLT) {
+    public void setDataformXSLT(String dataformXSLT) {
         this.dataformXSLT = dataformXSLT;
     }
 
-    void setSavedToDB(boolean savedToDB) {
+    public void setSavedToDB(boolean savedToDB) {
         this.savedToDB = savedToDB;
         if (savedToDB && parent != null) {
             // Notify the parent that he has a new child :)
@@ -1638,7 +1715,7 @@ public abstract class Node {
      *
      * @param creationDate the datetime when the node was created.
      */
-    void setCreationDate(Date creationDate) {
+    public void setCreationDate(Date creationDate) {
         this.creationDate = creationDate;
     }
 
@@ -1647,7 +1724,7 @@ public abstract class Node {
      *
      * @param modificationDate the last date when the ndoe's configuration was modified.
      */
-    void setModificationDate(Date modificationDate) {
+    public void setModificationDate(Date modificationDate) {
         this.modificationDate = modificationDate;
     }
 
@@ -1657,7 +1734,7 @@ public abstract class Node {
      *
      * @param description the description of the node.
      */
-    void setDescription(String description) {
+    public void setDescription(String description) {
         this.description = description;
     }
 
@@ -1667,7 +1744,7 @@ public abstract class Node {
      *
      * @param language the default language of the node.
      */
-    void setLanguage(String language) {
+    public void setLanguage(String language) {
         this.language = language;
     }
 
@@ -1677,7 +1754,7 @@ public abstract class Node {
      *
      * @param name the name of the node.
      */
-    void setName(String name) {
+    public void setName(String name) {
         this.name = name;
     }
 
@@ -1688,7 +1765,7 @@ public abstract class Node {
      *
      * @param contacts the JIDs of those to contact with questions.
      */
-    void setContacts(Collection<JID> contacts) {
+    public void setContacts(Collection<JID> contacts) {
         this.contacts = contacts;
     }
 
@@ -1698,16 +1775,16 @@ public abstract class Node {
     public void saveToDB() {
         // Make the room persistent
         if (!savedToDB) {
-            PubSubPersistenceManager.createNode(service, this);
+            provider.createNode(service, this);
             // Set that the node is now in the DB
             setSavedToDB(true);
             // Save the existing node affiliates to the DB
             for (NodeAffiliate affialiate : affiliates) {
-                PubSubPersistenceManager.saveAffiliation(service, this, affialiate, true);
+                provider.saveAffiliation(service, this, affialiate, true);
             }
             // Add new subscriptions to the database
             for (NodeSubscription subscription : subscriptionsByID.values()) {
-                PubSubPersistenceManager.saveSubscription(service, this, subscription, true);
+                provider.saveSubscription(service, this, subscription, true);
             }
             // Add the new node to the list of available nodes
             service.addNode(this);
@@ -1717,15 +1794,15 @@ public abstract class Node {
             }
         }
         else {
-            PubSubPersistenceManager.updateNode(service, this);
+            provider.updateNode(service, this);
         }
     }
 
-    void addAffiliate(NodeAffiliate affiliate) {
+    public void addAffiliate(NodeAffiliate affiliate) {
         affiliates.add(affiliate);
     }
 
-    void addSubscription(NodeSubscription subscription) {
+    public void addSubscription(NodeSubscription subscription) {
         subscriptionsByID.put(subscription.getID(), subscription);
         subscriptionsByJID.put(subscription.getJID().toString(), subscription);
     }
@@ -1776,7 +1853,7 @@ public abstract class Node {
      */
     public boolean delete() {
         // Delete node from the database
-        if (PubSubPersistenceManager.removeNode(service, this)) {
+        if (provider.removeNode(service, this)) {
             // Remove this node from the parent node (if any)
             if (parent != null) {
                 parent.removeChildNode(this);
@@ -1800,6 +1877,7 @@ public abstract class Node {
             cancelPresenceSubscriptions();
             // Remove the node from memory
             service.removeNode(getNodeID());
+            CacheFactory.doClusterTask(new RemoveNodeTask(this));
             // Clear collections in memory (clear them after broadcast was sent)
             affiliates.clear();
             subscriptionsByID.clear();
@@ -1825,7 +1903,11 @@ public abstract class Node {
      *
      * @param newParent the new parent node of this node.
      */
-    protected void changeParent(CollectionNode newParent) {
+    public void changeParent(CollectionNode newParent) {
+    	if (parent == newParent) {
+    		return;
+    	}
+
         if (parent != null) {
             // Remove this node from the current parent node
             parent.removeChildNode(this);
@@ -1837,7 +1919,7 @@ public abstract class Node {
             parent.addChildNode(this);
         }
         if (savedToDB) {
-            PubSubPersistenceManager.updateNode(service, this);
+            provider.updateNode(service, this);
         }
     }
 
@@ -2008,8 +2090,7 @@ public abstract class Node {
         // Generate a subscription ID (override even if one was sent by the client)
         String id = StringUtils.randomString(40);
         // Create new subscription
-        NodeSubscription subscription =
-                new NodeSubscription(service, this, owner, subscriber, subState, id);
+        NodeSubscription subscription = new NodeSubscription(service, this, owner, subscriber, subState, id);
         // Configure the subscription with the specified configuration (if any)
         if (options != null) {
             subscription.configure(options);
@@ -2018,7 +2099,7 @@ public abstract class Node {
 
         if (savedToDB) {
             // Add the new subscription to the database
-            PubSubPersistenceManager.saveSubscription(service, this, subscription, true);
+            provider.saveSubscription(service, this, subscription, true);
         }
 
         if (originalIQ != null) {
@@ -2032,6 +2113,9 @@ public abstract class Node {
         if (subscription.isAuthorizationPending()) {
             subscription.sendAuthorizationRequest();
         }
+
+        // Update the other members with the new subscription
+        CacheFactory.doClusterTask(new NewSubscriptionTask(subscription));
 
         // Send last published item (if node is leaf node and subscription status is ok)
         if (isSendItemSubscribe() && subscription.isActive()) {
@@ -2058,8 +2142,9 @@ public abstract class Node {
      * remove the existing affiliation too.
      *
      * @param subscription the subscription to cancel.
+     * @param sendToCluster True to forward cancel order to cluster peers
      */
-    public void cancelSubscription(NodeSubscription subscription) {
+    public void cancelSubscription(NodeSubscription subscription, boolean sendToCluster) {
         // Remove subscription from memory
         subscriptionsByID.remove(subscription.getID());
         subscriptionsByJID.remove(subscription.getJID().toString());
@@ -2072,12 +2157,27 @@ public abstract class Node {
         }
         if (savedToDB) {
             // Remove the subscription from the database
-            PubSubPersistenceManager.removeSubscription(service, this, subscription);
+		provider.removeSubscription(service, this, subscription);
         }
+        if (sendToCluster) {
+            CacheFactory.doClusterTask(new CancelSubscriptionTask(subscription));
+        }
+
         // Check if we need to unsubscribe from the presence of the owner
         if (isPresenceBasedDelivery() && getSubscriptions(subscription.getOwner()).isEmpty()) {
             service.presenceSubscriptionNotRequired(this, subscription.getOwner());
         }
+    }
+
+    /**
+     * Cancels an existing subscription to the node. If the subscriber does not have any
+     * other subscription to the node and his affiliation was of type <tt>none</tt> then
+     * remove the existing affiliation too.
+     *
+     * @param subscription the subscription to cancel.
+     */
+    public void cancelSubscription(NodeSubscription subscription) {
+        cancelSubscription(subscription, ClusterManager.isClusteringEnabled());
     }
 
     /**
@@ -2141,7 +2241,7 @@ public abstract class Node {
     }
 
     @Override
-	public String toString() {
+    public String toString() {
         return super.toString() + " - ID: " + getNodeID();
     }
 
@@ -2174,12 +2274,37 @@ public abstract class Node {
         if (approved) {
             // Mark that the subscription to the node has been approved
             subscription.approved();
+            CacheFactory.doClusterTask(new ModifySubscriptionTask(subscription));
         }
         else  {
             // Cancel the subscription to the node
             cancelSubscription(subscription);
         }
     }
+
+    @Override
+    public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + nodeID.hashCode();
+		result = prime * result + service.getServiceID().hashCode();
+		return result;
+	}
+
+    @Override
+	public boolean equals(Object obj) {
+    	if (obj == this) {
+			return true;
+		}
+
+    	if (getClass() != obj.getClass()) {
+			return false;
+		}
+
+    	Node compareNode = (Node) obj;
+
+		return (service.getServiceID().equals(compareNode.service.getServiceID()) && nodeID.equals(compareNode.nodeID));
+	}
 
     /**
      * Policy that defines whether owners or publisher should receive replies to items.

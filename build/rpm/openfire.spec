@@ -18,6 +18,7 @@ URL: http://www.igniterealtime.org/
 %define homedir %{prefix}/openfire
 # couldn't find another way to disable the brp-java-repack-jars which was called in __os_install_post
 %define __os_install_post %{nil}
+%define debug_package %{nil}
 
 %description
 Openfire is a leading Open Source, cross-platform IM server based on the
@@ -76,7 +77,6 @@ rm -rf $RPM_BUILD_ROOT%{homedir}/resources/nativeAuth/osx-ppc
 rm -rf $RPM_BUILD_ROOT%{homedir}/resources/nativeAuth/solaris-sparc
 rm -rf $RPM_BUILD_ROOT%{homedir}/resources/nativeAuth/win32-x86
 rm -f $RPM_BUILD_ROOT%{homedir}/lib/*.dll
-rm -rf $RPM_BUILD_ROOT%{homedir}/resources/spank
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -113,6 +113,7 @@ exit 0
 %{homedir}/bin/embedded-db-viewer.sh
 %dir %{homedir}/conf
 %config(noreplace) %{homedir}/conf/openfire.xml
+%config(noreplace) %{homedir}/conf/openfire.properties
 %dir %{homedir}/lib
 %{homedir}/lib/*.jar
 %{homedir}/lib/log4j.xml
@@ -133,6 +134,10 @@ exit 0
 %dir %{homedir}/resources/nativeAuth/linux-i386
 %{homedir}/resources/nativeAuth/linux-i386/*
 %dir %{homedir}/resources/security
+%dir %{homedir}/resources/spank
+%{homedir}/resources/spank/index.html
+%dir %{homedir}/resources/spank/WEB-INF
+%{homedir}/resources/spank/WEB-INF/web.xml
 %config(noreplace) %{homedir}/resources/security/keystore
 %config(noreplace) %{homedir}/resources/security/truststore
 %config(noreplace) %{homedir}/resources/security/client.truststore

@@ -20,10 +20,6 @@
 
 package org.jivesoftware.util;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,10 +28,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.provider.PropertiesProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.cache.CacheFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Retrieves and stores Jive properties. Properties are stored in the database.
@@ -43,13 +38,6 @@ import org.slf4j.LoggerFactory;
  * @author Matt Tucker
  */
 public class JiveProperties implements Map<String, String> {
-
-	private static final Logger Log = LoggerFactory.getLogger(JiveProperties.class);
-
-    private static final String LOAD_PROPERTIES = "SELECT name, propValue FROM ofProperty";
-    private static final String INSERT_PROPERTY = "INSERT INTO ofProperty(name, propValue) VALUES(?,?)";
-    private static final String UPDATE_PROPERTY = "UPDATE ofProperty SET propValue=? WHERE name=?";
-    private static final String DELETE_PROPERTY = "DELETE FROM ofProperty WHERE name LIKE ?";
 
     private static class JivePropertyHolder {
         private static final JiveProperties instance = new JiveProperties();
@@ -59,6 +47,11 @@ public class JiveProperties implements Map<String, String> {
     }
 
     private Map<String, String> properties;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final PropertiesProvider provider = ProviderFactory.getPropertiesProvider();
 
     /**
      * Returns a singleton instance of JiveProperties.
@@ -87,7 +80,7 @@ public class JiveProperties implements Map<String, String> {
             properties.clear();
         }
 
-        loadProperties();
+        properties.putAll(provider.loadProperties());
     }
 
     public int size() {
@@ -184,7 +177,7 @@ public class JiveProperties implements Map<String, String> {
                     properties.remove(name);
                 }
             }
-            deleteProperty((String)key);
+            provider.deleteProperty((String)key);
         }
 
         // Generate event.
@@ -229,11 +222,11 @@ public class JiveProperties implements Map<String, String> {
         synchronized (this) {
             if (properties.containsKey(key)) {
                 if (!properties.get(key).equals(value)) {
-                    updateProperty(key, value);
+                    provider.updateProperty(key, value);
                 }
             }
             else {
-                insertProperty(key, value);
+            	provider.insertProperty(key, value);
             }
 
             result = properties.put(key, value);
@@ -280,81 +273,6 @@ public class JiveProperties implements Map<String, String> {
         }
         else {
             return defaultValue;
-        }
-    }
-
-    private void insertProperty(String name, String value) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(INSERT_PROPERTY);
-            pstmt.setString(1, name);
-            pstmt.setString(2, value);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    private void updateProperty(String name, String value) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(UPDATE_PROPERTY);
-            pstmt.setString(1, value);
-            pstmt.setString(2, name);
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    private void deleteProperty(String name) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(DELETE_PROPERTY);
-            pstmt.setString(1, name + "%");
-            pstmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
-    }
-
-    private void loadProperties() {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(LOAD_PROPERTIES);
-            rs = pstmt.executeQuery();
-            while (rs.next()) {
-                String name = rs.getString(1);
-                String value = rs.getString(2);
-                properties.put(name, value);
-            }
-        }
-        catch (Exception e) {
-            Log.error(e.getMessage(), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);
         }
     }
 }

@@ -65,6 +65,7 @@ public class RoutingTableImpl extends BasicModule implements RoutingTable, Clust
     public static final String ANONYMOUS_C2S_CACHE_NAME = "Routing AnonymousUsers Cache";
     public static final String S2S_CACHE_NAME = "Routing Servers Cache";
     public static final String COMPONENT_CACHE_NAME = "Routing Components Cache";
+    public static final String C2S_SESSION_NAME = "Routing User Sessions";
 
     /**
      * Cache (unlimited, never expire) that holds outgoing sessions to remote servers from this server.
@@ -108,7 +109,7 @@ public class RoutingTableImpl extends BasicModule implements RoutingTable, Clust
         componentsCache = CacheFactory.createCache(COMPONENT_CACHE_NAME);
         usersCache = CacheFactory.createCache(C2S_CACHE_NAME);
         anonymousUsersCache = CacheFactory.createCache(ANONYMOUS_C2S_CACHE_NAME);
-        usersSessions = CacheFactory.createCache("Routing User Sessions");
+        usersSessions = CacheFactory.createCache(C2S_SESSION_NAME);
         localRoutingTable = new LocalRoutingTable();
     }
 
@@ -299,7 +300,7 @@ public class RoutingTableImpl extends BasicModule implements RoutingTable, Clust
 		            routed = false;
 		        }
 		        else {
-		            if (server.getNodeID().equals(clientRoute.getNodeID())) {
+		            if (localRoutingTable.isLocalRoute(jid)) {
 		                // This is a route to a local user hosted in this node
 		                try {
 		                    localRoutingTable.getRoute(jid.toString()).process(packet);
@@ -313,6 +314,9 @@ public class RoutingTableImpl extends BasicModule implements RoutingTable, Clust
 		                if (remotePacketRouter != null) {
 		                    routed = remotePacketRouter
 		                            .routePacket(clientRoute.getNodeID().toByteArray(), jid, packet);
+		                    if (!routed) {
+		                    	removeClientRoute(jid); // drop invalid client route
+		                    }
 		                }
 		            }
 		        }
@@ -565,10 +569,10 @@ public class RoutingTableImpl extends BasicModule implements RoutingTable, Clust
     }
 
     /**
-     * Returns the sessions that had the highest presence priority greater than zero.
+     * Returns the sessions that had the highest presence priority that is non-negative.
      *
      * @param sessions the list of user sessions that filter and get the ones with highest priority.
-     * @return the sessions that had the highest presence priority greater than zero or empty collection
+     * @return the sessions that had the highest presence non-negative priority or empty collection
      *         if all were negative.
      */
     private List<ClientSession> getHighestPrioritySessions(List<ClientSession> sessions) {
@@ -706,19 +710,26 @@ public class RoutingTableImpl extends BasicModule implements RoutingTable, Clust
             }
             else {
                 // Address is a bare JID so return all AVAILABLE resources of user
-                Collection<String> sessions = usersSessions.get(route.toBareJID());
-                if (sessions != null) {
-                    // Select only available sessions
-                    for (String jid : sessions) {
-                        ClientRoute clientRoute = usersCache.get(jid);
-                        if (clientRoute == null) {
-                            clientRoute = anonymousUsersCache.get(jid);
-                        }
-                        if (clientRoute != null && (clientRoute.isAvailable() ||
-                                presenceUpdateHandler.hasDirectPresence(new JID(jid), requester))) {
-                            jids.add(new JID(jid));
-                        }
-                    }
+                Lock lock = CacheFactory.getLock(route.toBareJID(), usersSessions);
+                try {
+                    lock.lock(); // temporarily block new sessions for this JID
+	                Collection<String> sessions = usersSessions.get(route.toBareJID());
+	                if (sessions != null) {
+	                    // Select only available sessions
+	                    for (String jid : sessions) {
+	                        ClientRoute clientRoute = usersCache.get(jid);
+	                        if (clientRoute == null) {
+	                            clientRoute = anonymousUsersCache.get(jid);
+	                        }
+	                        if (clientRoute != null && (clientRoute.isAvailable() ||
+	                                presenceUpdateHandler.hasDirectPresence(new JID(jid), requester))) {
+	                            jids.add(new JID(jid));
+	                        }
+	                    }
+	                }
+                }
+                finally {
+                	lock.unlock();
                 }
             }
         }

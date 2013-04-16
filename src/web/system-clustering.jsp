@@ -21,9 +21,10 @@
 <%@ taglib uri="http://java.sun.com/jstl/core_rt" prefix="c" %>
 <%@ taglib uri="http://java.sun.com/jstl/fmt_rt" prefix="fmt" %>
 
-<%@ page import="org.jivesoftware.database.DbConnectionManager"
+<%@ page import="org.jivesoftware.openfire.provider.ProviderFactory"
     errorPage="error.jsp"
 %>
+<%@ page import="org.jivesoftware.openfire.provider.ProviderFactory" %>
 <%@ page import="org.jivesoftware.openfire.XMPPServer" %>
 <%@ page import="org.jivesoftware.openfire.cluster.ClusterManager" %>
 <%@ page import="org.jivesoftware.openfire.cluster.ClusterNodeInfo" %>
@@ -79,9 +80,8 @@
         }
     }
 
-    boolean usingEmbeddedDB = DbConnectionManager.isEmbeddedDB();
+    boolean usingEmbeddedDB = ProviderFactory.getConnectionManagerWrapper().isEmbeddedDB();
     boolean clusteringAvailable = !usingEmbeddedDB && ClusterManager.isClusteringAvailable();
-    boolean clusteringStarting = ClusterManager.isClusteringStarting();
     int maxClusterNodes = ClusterManager.getMaxClusterNodes();
     clusteringEnabled = ClusterManager.isClusteringStarted() || ClusterManager.isClusteringStarting();
 
@@ -196,7 +196,7 @@
 			<tr>
 				<td width="1%" valign="top" nowrap>
 					<input type="radio" name="clusteringEnabled" value="false" id="rb01"
-					 <%= (!clusteringEnabled ? "checked" : "") %> <%= (!clusteringAvailable || clusteringStarting ? "disabled" : "") %>>
+					 <%= (!clusteringEnabled ? "checked" : "") %> <%= clusteringAvailable ? "" : "disabled" %>>
 				</td>
 				<td width="99%">
 					<label for="rb01">
@@ -207,7 +207,7 @@
 			<tr>
 				<td width="1%" valign="top" nowrap>
 					<input type="radio" name="clusteringEnabled" value="true" id="rb02"
-					 <%= (clusteringEnabled ? "checked" : "") %> <%= (!clusteringAvailable || clusteringStarting ? "disabled" : "") %>>
+					 <%= (clusteringEnabled ? "checked" : "") %> <%= clusteringAvailable ? "" : "disabled" %>>
 				</td>
 				<td width="99%">
 					<label for="rb02">
@@ -218,7 +218,7 @@
 		</tbody>
 		</table>
         <br/>
-        <% if (clusteringAvailable  && !clusteringStarting) { %>
+        <% if (clusteringAvailable) { %>
         <input type="submit" name="update" value="<fmt:message key="global.save_settings" />">
         <% } %>
     </div>
@@ -283,17 +283,19 @@
             %>
               <tr class="<%= (isLocalMember ? "local" : "") %>" valign="middle">
                   <td align="center" width="1%">
-                      <a href="plugins/clustering/system-clustering-node.jsp?UID=<%= nodeID %>"
+                      <a href="plugins/<%= CacheFactory.getPluginName() %>/system-clustering-node.jsp?UID=<%= nodeID %>"
                        title="Click for more details"
                        ><img src="images/server-network-24x24.gif" width="24" height="24" border="0" alt=""></a>
                   </td>
                   <td class="jive-description" nowrap width="1%" valign="middle">
-                      <a href="plugins/clustering/system-clustering-node.jsp?UID=<%= nodeID %>">
+                      <a href="plugins/<%= CacheFactory.getPluginName() %>/system-clustering-node.jsp?UID=<%= nodeID %>">
                       <%  if (isLocalMember) { %>
                           <b><%= nodeInfo.getHostName() %></b>
                       <%  } else { %>
                           <%= nodeInfo.getHostName() %>
                       <%  } %></a>
+                      <br />
+                      <%= nodeInfo.getNodeID() %>
                   </td>
                   <td class="jive-description" nowrap width="1%" valign="middle">
                       <%= JiveGlobals.formatDateTime(new Date(nodeInfo.getJoinedTime())) %>
@@ -359,7 +361,7 @@
                   <td width="20%">&nbsp;</td>
               </tr>
               <% }
-              } else if (clusteringStarting) { %>
+              } else if (ClusterManager.isClusteringStarting()) { %>
               <tr valign="middle" align="middle" class="local">
                   <td colspan=8>
                       <fmt:message key="system.clustering.starting">

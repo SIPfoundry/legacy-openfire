@@ -72,7 +72,7 @@ public class ConversationUtils {
         // Get handle on the Monitoring plugin
         MonitoringPlugin plugin =
             (MonitoringPlugin)XMPPServer.getInstance().getPluginManager().getPlugin(
-                "monitoring");
+            		MonitoringConstants.NAME);
 
         ArchiveIndexer archiveIndexer = (ArchiveIndexer)plugin.getModule(ArchiveIndexer.class);
 
@@ -96,7 +96,7 @@ public class ConversationUtils {
         // Get handle on the Monitoring plugin
         MonitoringPlugin plugin =
             (MonitoringPlugin)XMPPServer.getInstance().getPluginManager().getPlugin(
-                "monitoring");
+            		MonitoringConstants.NAME);
 
         ConversationManager conversationmanager =
             (ConversationManager)plugin.getModule(ConversationManager.class);
@@ -121,7 +121,7 @@ public class ConversationUtils {
     public Map<String, ConversationInfo> getConversations(boolean formatParticipants) {
         Map<String, ConversationInfo> cons = new HashMap<String, ConversationInfo>();
         MonitoringPlugin plugin = (MonitoringPlugin)XMPPServer.getInstance().getPluginManager()
-            .getPlugin("monitoring");
+            .getPlugin(MonitoringConstants.NAME);
         ConversationManager conversationManager =
             (ConversationManager)plugin.getModule(ConversationManager.class);
         Collection<Conversation> conversations = conversationManager.getConversations();
@@ -180,7 +180,7 @@ public class ConversationUtils {
 
 
             Paragraph p = new Paragraph(
-                LocaleUtils.getLocalizedString("archive.search.pdf.title", "monitoring"),
+                LocaleUtils.getLocalizedString("archive.search.pdf.title", MonitoringConstants.NAME),
                 FontFactory.getFont(FontFactory.HELVETICA,
                     18, Font.BOLD));
             document.add(p);
@@ -199,7 +199,7 @@ public class ConversationUtils {
 
             Paragraph chapterTitle = new Paragraph(
                 LocaleUtils
-                    .getLocalizedString("archive.search.pdf.participants", "monitoring") +
+                    .getLocalizedString("archive.search.pdf.participants", MonitoringConstants.NAME) +
                     " " + participantsDetail,
                 FontFactory.getFont(FontFactory.HELVETICA, 12,
                     Font.BOLD));
@@ -208,7 +208,7 @@ public class ConversationUtils {
 
 
             Paragraph startDate = new Paragraph(
-                LocaleUtils.getLocalizedString("archive.search.pdf.startdate", "monitoring") +
+                LocaleUtils.getLocalizedString("archive.search.pdf.startdate", MonitoringConstants.NAME) +
                     " " +
                     coninfo.getDate(),
                 FontFactory.getFont(FontFactory.HELVETICA, 12,
@@ -217,7 +217,7 @@ public class ConversationUtils {
 
 
             Paragraph duration = new Paragraph(
-                LocaleUtils.getLocalizedString("archive.search.pdf.duration", "monitoring") +
+                LocaleUtils.getLocalizedString("archive.search.pdf.duration", MonitoringConstants.NAME) +
                     " " +
                     coninfo.getDuration(),
                 FontFactory.getFont(FontFactory.HELVETICA, 12,
@@ -227,7 +227,7 @@ public class ConversationUtils {
 
             Paragraph messageCount = new Paragraph(
                 LocaleUtils
-                    .getLocalizedString("archive.search.pdf.messagecount", "monitoring") +
+                    .getLocalizedString("archive.search.pdf.messagecount", MonitoringConstants.NAME) +
                     " " +
                     conversation.getMessageCount(),
                 FontFactory.getFont(FontFactory.HELVETICA, 12,
@@ -350,7 +350,7 @@ public class ConversationUtils {
         if (conversation.getMessages().size() == 0) {
             builder.append("<span class=small-description>" +
                 LocaleUtils.getLocalizedString("archive.search.results.archive_disabled",
-                    "monitoring") +
+                		MonitoringConstants.NAME) +
                 "</a>");
         }
 

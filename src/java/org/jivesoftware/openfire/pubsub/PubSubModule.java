@@ -25,11 +25,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
-import java.util.Timer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
@@ -37,8 +34,6 @@ import org.jivesoftware.openfire.PacketRouter;
 import org.jivesoftware.openfire.RoutableChannelHandler;
 import org.jivesoftware.openfire.RoutingTable;
 import org.jivesoftware.openfire.XMPPServer;
-import org.jivesoftware.openfire.cluster.ClusterEventListener;
-import org.jivesoftware.openfire.cluster.ClusterManager;
 import org.jivesoftware.openfire.commands.AdHocCommandManager;
 import org.jivesoftware.openfire.component.InternalComponentManager;
 import org.jivesoftware.openfire.container.BasicModule;
@@ -47,6 +42,8 @@ import org.jivesoftware.openfire.disco.DiscoItem;
 import org.jivesoftware.openfire.disco.DiscoItemsProvider;
 import org.jivesoftware.openfire.disco.DiscoServerItem;
 import org.jivesoftware.openfire.disco.ServerItemsProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
 import org.jivesoftware.util.JiveGlobals;
@@ -71,7 +68,7 @@ import org.xmpp.packet.Presence;
  * @author Matt Tucker
  */
 public class PubSubModule extends BasicModule implements ServerItemsProvider, DiscoInfoProvider,
-        DiscoItemsProvider, RoutableChannelHandler, PubSubService, ClusterEventListener, PropertyEventListener {
+        DiscoItemsProvider, RoutableChannelHandler, PubSubService, PropertyEventListener {
 
 	private static final Logger Log = LoggerFactory.getLogger(PubSubModule.class);
 
@@ -89,7 +86,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
      * Nodes managed by this manager, table: key nodeID (String); value Node
      */
     private Map<String, Node> nodes = new ConcurrentHashMap<String, Node>();
-    
+
     /**
      * Keep a registry of the presence's show value of users that subscribed to a node of
      * the pubsub service and for which the node only delivers notifications for online users
@@ -99,36 +96,11 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
      */
     private Map<String, Map<String, String>> barePresences =
             new ConcurrentHashMap<String, Map<String, String>>();
-    
-    /**
-     * Queue that holds the items that need to be added to the database.
-     */
-    private Queue<PublishedItem> itemsToAdd = new LinkedBlockingQueue<PublishedItem>(10000);
-    /**
-     * Queue that holds the items that need to be deleted from the database.
-     */
-    private Queue<PublishedItem> itemsToDelete = new LinkedBlockingQueue<PublishedItem>(10000);
-    
+
     /**
      * Manager that keeps the list of ad-hoc commands and processing command requests.
      */
     private AdHocCommandManager manager;
-    
-    /**
-     * The time to elapse between each execution of the maintenance process. Default
-     * is 2 minutes.
-     */
-    private int items_task_timeout = 2 * 60 * 1000;
-
-    /**
-     * Task that saves or deletes published items from the database.
-     */
-    private PublishedItemTask publishedItemTask;
-
-    /**
-     * Timer to save published items to the database or remove deleted or old items.
-     */
-    private Timer timer = new Timer("PubSub maintenance");
 
     /**
      * Returns the permission policy for creating nodes. A true value means that not anyone can
@@ -184,22 +156,13 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
 
     public PubSubModule() {
         super("Publish Subscribe Service");
-        
+
         // Initialize the ad-hoc commands manager to use for this pubsub service
         manager = new AdHocCommandManager();
         manager.addCommand(new PendingSubscriptionsCommand(this));
-        
-        // Save or delete published items from the database every 2 minutes starting in
-        // 2 minutes (default values)
-        publishedItemTask = new PublishedItemTask(this);
-        timer.schedule(publishedItemTask, items_task_timeout, items_task_timeout);
     }
 
     public void process(Packet packet) {
-        // TODO Remove this method when moving PubSub as a component and removing module code
-        // The MUC service will receive all the packets whose domain matches the domain of the MUC
-        // service. This means that, for instance, a disco request should be responded by the
-        // service itself instead of relying on the server to handle the request.
         try {
             // Check if the packet is a disco request or a packet with namespace iq:register
             if (packet instanceof IQ) {
@@ -303,14 +266,6 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         PubSubEngine.presenceSubscriptionRequired(this, node, user);
     }
 
-    public void queueItemToAdd(PublishedItem newItem) {
-        PubSubEngine.queueItemToAdd(this, newItem);
-    }
-
-    public void queueItemToRemove(PublishedItem removedItem) {
-        PubSubEngine.queueItemToRemove(this, removedItem);
-    }
-
     public String getServiceName() {
         return serviceName;
     }
@@ -383,6 +338,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
 	public void initialize(XMPPServer server) {
         super.initialize(server);
 
+        final PubSubProvider provider = ProviderFactory.getPubsubProvider();
         // Listen to property events so that the template is always up to date
         PropertyEventDispatcher.addListener(this);
 
@@ -415,10 +371,10 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         routingTable = server.getRoutingTable();
         router = server.getPacketRouter();
 
-        engine = new PubSubEngine(server.getPacketRouter());
+        engine = new PubSubEngine(router);
 
         // Load default configuration for leaf nodes
-        leafDefaultConfiguration = PubSubPersistenceManager.loadDefaultConfiguration(this, true);
+        leafDefaultConfiguration = provider.loadDefaultConfiguration(this, true);
         if (leafDefaultConfiguration == null) {
             // Create and save default configuration for leaf nodes;
             leafDefaultConfiguration = new DefaultNodeConfiguration(true);
@@ -436,11 +392,11 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             leafDefaultConfiguration.setSendItemSubscribe(true);
             leafDefaultConfiguration.setSubscriptionEnabled(true);
             leafDefaultConfiguration.setReplyPolicy(null);
-            PubSubPersistenceManager.createDefaultConfiguration(this, leafDefaultConfiguration);
+            provider.createDefaultConfiguration(this, leafDefaultConfiguration);
         }
         // Load default configuration for collection nodes
         collectionDefaultConfiguration =
-                PubSubPersistenceManager.loadDefaultConfiguration(this, false);
+                provider.loadDefaultConfiguration(this, false);
         if (collectionDefaultConfiguration == null ) {
             // Create and save default configuration for collection nodes;
             collectionDefaultConfiguration = new DefaultNodeConfiguration(false);
@@ -457,12 +413,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             collectionDefaultConfiguration
                     .setAssociationPolicy(CollectionNode.LeafNodeAssociationPolicy.all);
             collectionDefaultConfiguration.setMaxLeafNodes(-1);
-            PubSubPersistenceManager
+            provider
                     .createDefaultConfiguration(this, collectionDefaultConfiguration);
         }
 
         // Load nodes to memory
-        PubSubPersistenceManager.loadNodes(this);
+        provider.loadNodes(this);
         // Ensure that we have a root collection node
         String rootNodeID = JiveGlobals.getProperty("xmpp.pubsub.root.nodeID", "");
         if (nodes.isEmpty()) {
@@ -479,8 +435,6 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         else {
             rootCollectionNode = (CollectionNode) getNode(rootNodeID);
         }
-        // Listen to cluster events
-        ClusterManager.addListener(this);
     }
 
     @Override
@@ -548,27 +502,9 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return serviceEnabled;
     }
 
-    public void joinedCluster() {
-        // Disable the service until we know that we are the senior cluster member
-        enableService(false);
-    }
-
-    public void joinedCluster(byte[] nodeID) {
-        // Do nothing
-    }
-
-    public void leftCluster() {
-        // Offer the service when not running in a cluster
-        enableService(true);
-    }
-
-    public void leftCluster(byte[] nodeID) {
-        // Do nothing
-    }
-
     public void markedAsSeniorClusterMember() {
         // Offer the service since we are the senior cluster member
-        enableService(true);
+		// enableService(true);
     }
 
     public Iterator<DiscoServerItem> getItems() {
@@ -803,7 +739,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         nodes.remove(nodeID);
     }
 
-    private boolean canDiscoverNode(Node pubNode) {
+    private static boolean canDiscoverNode(Node pubNode) {
         return true;
     }
 
@@ -828,36 +764,8 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return barePresences;
     }
 
-    public Queue<PublishedItem> getItemsToAdd() {
-        return itemsToAdd;
-    }
-
-    public Queue<PublishedItem> getItemsToDelete() {
-        return itemsToDelete;
-    }
-
     public AdHocCommandManager getManager() {
         return manager;
-    }
-
-    public PublishedItemTask getPublishedItemTask() {
-        return publishedItemTask;
-    }
-
-    public void setPublishedItemTask(PublishedItemTask task) {
-        publishedItemTask = task;
-    }
-
-    public Timer getTimer() {
-        return timer;
-    }
-    
-    public int getItemsTaskTimeout() {
-        return items_task_timeout;
-    }
-
-    public void setItemsTaskTimeout(int timeout) {
-        items_task_timeout = timeout;
     }
 
     public void propertySet(String property, Map<String, Object> params) {

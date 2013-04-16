@@ -38,11 +38,11 @@ package org.jivesoftware.util;
  * @author Jive Software
  * @see org.jivesoftware.util.LinkedList
  */
-public class LinkedListNode {
+public class LinkedListNode<T> {
 
-    public LinkedListNode previous;
-    public LinkedListNode next;
-    public Object object;
+    public LinkedListNode<T> previous;
+    public LinkedListNode<T> next;
+    public T object;
 
     /**
      * This class is further customized for the CoolServlets cache system. It
@@ -64,8 +64,8 @@ public class LinkedListNode {
      * @param next     a reference to the next LinkedListNode in the list.
      * @param previous a reference to the previous LinkedListNode in the list.
      */
-    public LinkedListNode(Object object, LinkedListNode next,
-                          LinkedListNode previous) {
+    public LinkedListNode(T object, LinkedListNode<T> next,
+                          LinkedListNode<T> previous) {
         this.object = object;
         this.next = next;
         this.previous = previous;

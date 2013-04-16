@@ -18,7 +18,7 @@
 --%>
 
 <%@ page import="org.jivesoftware.util.*,
-                 org.jivesoftware.database.DbConnectionManager,
+                 org.jivesoftware.openfire.provider.ProviderFactory;,
                  java.sql.*"
     errorPage="error.jsp"
 %>
@@ -41,10 +41,8 @@
     <body>
 
 <%  // Get metadata about the database
-    Connection con = null;
     try {
-        con = DbConnectionManager.getConnection();
-        DatabaseMetaData metaData = con.getMetaData();
+        DatabaseMetaData metaData = ProviderFactory.getConnectionManagerWrapper().getMetaData();
 %>
 
 <p>
@@ -114,27 +112,34 @@
                 <fmt:message key="server.db.transaction_level" />
             </td>
             <td class="c2">
-                <%  if (con.getTransactionIsolation() == Connection.TRANSACTION_NONE) { %>
+                <% switch(ProviderFactory.getConnectionManagerWrapper().getTransactionIsolation()) {  
+                
+                	case Connection.TRANSACTION_NONE: %>
 
                         TRANSACTION_NONE
 
-                <%  } else if (con.getTransactionIsolation() == Connection.TRANSACTION_READ_COMMITTED) { %>
+            	<%  	break;
+            		case Connection.TRANSACTION_READ_COMMITTED: %>
 
                         TRANSACTION_READ_COMMITTED
 
-                <%  } else if (con.getTransactionIsolation() == Connection.TRANSACTION_READ_UNCOMMITTED) { %>
+                <%		break;
+                	case Connection.TRANSACTION_READ_UNCOMMITTED: %>
 
                         TRANSACTION_READ_UNCOMMITTED
 
-                <%  } else if (con.getTransactionIsolation() == Connection.TRANSACTION_REPEATABLE_READ) { %>
+                <%		break;
+                	case Connection.TRANSACTION_REPEATABLE_READ: %>
 
                         TRANSACTION_REPEATABLE_READ
 
-                <%  } else if (con.getTransactionIsolation() == Connection.TRANSACTION_SERIALIZABLE) { %>
+                <%		break;
+                	case Connection.TRANSACTION_SERIALIZABLE: %>
 
                         TRANSACTION_SERIALIZABLE
 
-                <%  } %>
+                <%  	break;
+                } %>
             </td>
         </tr>
     <%  } %>
@@ -160,12 +165,11 @@
 </div>
 
 <%  }
-    finally {
-        try { if (con != null) { con.close(); } }
-        catch (SQLException e) { Log.error(e); }
-    }
+    catch (SQLException e) {
+    	Log.error(e);
+	}
 
-    if (DbConnectionManager.getConnectionProvider().isPooled()) {
+    if (ProviderFactory.getConnectionManagerWrapper().getConnectionProvider().isPooled()) {
         try {
             // Get metadata about the connection pool
             ConnectionPoolDefinitionIF poolDef = ProxoolFacade.getConnectionPoolDefinition("openfire");

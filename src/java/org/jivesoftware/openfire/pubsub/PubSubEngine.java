@@ -39,9 +39,13 @@ import org.jivesoftware.openfire.RoutingTable;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.XMPPServerListener;
 import org.jivesoftware.openfire.component.InternalComponentManager;
+import org.jivesoftware.openfire.pubsub.cluster.RefreshNodeTask;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.util.StringUtils;
+import org.jivesoftware.util.cache.CacheFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.forms.DataForm;
@@ -65,6 +69,11 @@ public class PubSubEngine {
      * The packet router for the server.
      */
     private PacketRouter router = null;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final PubSubProvider provider = ProviderFactory.getPubsubProvider();
 
     public PubSubEngine(PacketRouter router) {
         this.router = router;
@@ -287,7 +296,7 @@ public class PubSubEngine {
             // Process Messages of type error to identify possible subscribers that no longer exist
             if (message.getError().getType() == PacketError.Type.cancel) {
                 // TODO Assuming that owner is the bare JID (as defined in the JEP). This can be replaced with an explicit owner specified in the packet
-                JID owner = new JID(message.getFrom().toBareJID());
+                JID owner = message.getFrom().asBareJID();
                 // Terminate the subscription of the entity to all nodes hosted at the service
                cancelAllSubscriptions(service, owner);
             }
@@ -332,7 +341,7 @@ public class PubSubEngine {
 
         JID from = iq.getFrom();
         // TODO Assuming that owner is the bare JID (as defined in the JEP). This can be replaced with an explicit owner specified in the packet
-        JID owner = new JID(from.toBareJID());
+        JID owner = from.asBareJID();
         if (!node.getPublisherModel().canPublish(node, owner) && !service.isServiceAdmin(owner)) {
             // Entity does not have sufficient privileges to publish to node
             sendErrorPacket(iq, PacketError.Condition.forbidden, null);
@@ -516,7 +525,7 @@ public class PubSubEngine {
             return;
         }
         // TODO Assumed that the owner of the subscription is the bare JID of the subscription JID. Waiting StPeter answer for explicit field.
-        JID owner = new JID(subscriberJID.toBareJID());
+        JID owner = subscriberJID.asBareJID();
         // Check if the node's access model allows the subscription to proceed
         AccessModel accessModel = node.getAccessModel();
         if (!accessModel.canSubscribe(node, owner, subscriberJID)) {
@@ -647,7 +656,7 @@ public class PubSubEngine {
         }
         NodeSubscription subscription;
         JID owner = new JID(jidAttribute);
-        
+
         if (node.isMultipleSubscriptionsEnabled() && node.getSubscriptions(owner).size() > 1) {
             if (subID == null) {
                 // No subid was specified and the node supports multiple subscriptions
@@ -867,12 +876,12 @@ public class PubSubEngine {
 
     private void getSubscriptions(PubSubService service, IQ iq, Element childElement) {
         // TODO Assuming that owner is the bare JID (as defined in the JEP). This can be replaced with an explicit owner specified in the packet
-        JID owner = new JID(iq.getFrom().toBareJID());
+        JID owner = iq.getFrom().asBareJID();
         Element subscriptionsElement = childElement.element("subscriptions");
-        
+
         String nodeID = subscriptionsElement.attributeValue("node");
         Collection<NodeSubscription> subscriptions = new ArrayList<NodeSubscription>();
-        
+
         if (nodeID == null)
         {
             // Collect subscriptions of owner for all nodes at the service
@@ -911,7 +920,7 @@ public class PubSubEngine {
 
     private  void getAffiliations(PubSubService service, IQ iq, Element childElement) {
         // TODO Assuming that owner is the bare JID (as defined in the JEP). This can be replaced with an explicit owner specified in the packet
-        JID owner = new JID(iq.getFrom().toBareJID());
+        JID owner = iq.getFrom().asBareJID();
         // Collect affiliations of owner for all nodes at the service
         Collection<NodeAffiliate> affiliations = new ArrayList<NodeAffiliate>();
         for (Node node : service.getNodes()) {
@@ -976,7 +985,7 @@ public class PubSubEngine {
         // Check if sender and subscriber JIDs match or if a valid "trusted proxy" is being used
         JID subscriberJID = iq.getFrom();
         // TODO Assumed that the owner of the subscription is the bare JID of the subscription JID. Waiting StPeter answer for explicit field.
-        JID owner = new JID(subscriberJID.toBareJID());
+        JID owner = subscriberJID.asBareJID();
         // Check if the node's access model allows the subscription to proceed
         AccessModel accessModel = node.getAccessModel();
         if (!accessModel.canAccessItems(node, owner, subscriberJID)) {
@@ -1191,7 +1200,7 @@ public class PubSubEngine {
         Node newNode = null;
         try {
             // TODO Assumed that the owner of the subscription is the bare JID of the subscription JID. Waiting StPeter answer for explicit field.
-            JID owner = new JID(from.toBareJID());
+            JID owner = from.asBareJID();
             synchronized (newNodeID.intern()) {
                 if (service.getNode(newNodeID) == null) {
                     // Create the node
@@ -1210,6 +1219,8 @@ public class PubSubEngine {
                     else {
                         newNode.saveToDB();
                     }
+
+					CacheFactory.doClusterTask(new RefreshNodeTask(newNode));
                 }
                 else {
                     conflict = true;
@@ -1302,6 +1313,8 @@ public class PubSubEngine {
                 // Update node configuration with the provided data form
                 // (and update the backend store)
                 node.configure(completedForm);
+
+				CacheFactory.doClusterTask(new RefreshNodeTask(node));
                 // Return that node configuration was successful
                 router.route(IQ.createResultIQ(iq));
             }
@@ -1441,7 +1454,7 @@ public class PubSubEngine {
             Element entity = (Element) it.next();
             JID subscriber = new JID(entity.attributeValue("jid"));
             // TODO Assumed that the owner of the subscription is the bare JID of the subscription JID. Waiting StPeter answer for explicit field.
-            JID owner = new JID(subscriber.toBareJID());
+            JID owner = subscriber.asBareJID();
             String subStatus = entity.attributeValue("subscription");
             String subID = entity.attributeValue("subid");
             // Process subscriptions changes
@@ -1701,7 +1714,7 @@ public class PubSubEngine {
     public void start(final PubSubService service) {
         // Probe presences of users that this service has subscribed to (once the server
         // has started)
-        
+
         if (XMPPServer.getInstance().isStarted()) {
             probePresences(service);
         }
@@ -1714,7 +1727,7 @@ public class PubSubEngine {
                 public void serverStopping() {
                 }
             });
-        }        
+        }
     }
 
     private void probePresences(final PubSubService service) {
@@ -1732,26 +1745,10 @@ public class PubSubEngine {
     }
 
     public void shutdown(PubSubService service) {
-        // Stop the maintenance processes
-    	service.getPublishedItemTask().cancel();
-        // Delete from the database items contained in the itemsToDelete queue
-        PublishedItem entry;
-        while (!service.getItemsToDelete().isEmpty()) {
-            entry = service.getItemsToDelete().poll();
-            if (entry != null) {
-                PubSubPersistenceManager.removePublishedItem(service, entry);
-            }
-        }
-        // Save to the database items contained in the itemsToAdd queue
-        while (!service.getItemsToAdd().isEmpty()) {
-            entry = service.getItemsToAdd().poll();
-            if (entry != null) {
-                PubSubPersistenceManager.createPublishedItem(service, entry);
-            }
-        }
+    	provider.shutdown();
         // Stop executing ad-hoc commands
         service.getManager().stop();
-        
+
         // clear all nodes for this service, to remove circular references back to the service instance.
 		service.getNodes().clear(); // FIXME: this is an ugly hack. getNodes() is documented to return an unmodifiable collection (but does not).
 
@@ -1843,81 +1840,10 @@ public class PubSubEngine {
         }
     }
 
-    /*******************************************************************************
-     * Methods related to PubSub maintenance tasks. Such as
-     * saving or deleting published items.
-     ******************************************************************************/
-
-    /**
-     * Schedules the maintenance task for repeated <i>fixed-delay execution</i>,
-     * beginning after the specified delay.  Subsequent executions take place
-     * at approximately regular intervals separated by the specified period.
-     *
-     * @param service the PubSub service this action is to be performed for.
-     * @param timeout the new frequency of the maintenance task.
-     */
-    void setPublishedItemTaskTimeout(PubSubService service, int timeout) {
-        int items_task_timeout = service.getItemsTaskTimeout();
-        if (items_task_timeout == timeout) {
-            return;
-        }
-        // Cancel the existing task because the timeout has changed
-        PublishedItemTask publishedItemTask = service.getPublishedItemTask();
-        if (publishedItemTask != null) {
-            publishedItemTask.cancel();
-        }
-        service.setItemsTaskTimeout(timeout);
-        // Create a new task and schedule it with the new timeout
-        service.setPublishedItemTask(new PublishedItemTask(service));
-        service.getTimer().schedule(publishedItemTask, items_task_timeout, items_task_timeout);
-    }
-
-    /**
-     * Adds the item to the queue of items to remove from the database. The queue is going
-     * to be processed by another thread.
-     *
-     * @param service the PubSub service this action is to be performed for.
-     * @param removedItem the item to remove from the database.
-     */
-    public static void queueItemToRemove(PubSubService service, PublishedItem removedItem) {
-        // Remove the removed item from the queue of items to add to the database
-        if (!service.getItemsToAdd().remove(removedItem)) {
-            // The item is already present in the database so add the removed item
-            // to the queue of items to delete from the database
-            service.getItemsToDelete().add(removedItem);
-        }
-    }
-
-    /**
-     * Adds the item to the queue of items to add to the database. The queue is going
-     * to be processed by another thread.
-     *
-     * @param service the PubSub service this action is to be performed for.
-     * @param newItem the item to add to the database.
-     */
-    public static void queueItemToAdd(PubSubService service, PublishedItem newItem) {
-        service.getItemsToAdd().add(newItem);
-    }
-
-    /**
-     * Cancels any queued operation for the specified list of items. This operation is
-     * usually required when a node was deleted so any pending operation of the node items
-     * should be cancelled.
-     *
-     * @param service the PubSub service this action is to be performed for.
-     * @param items the list of items to remove the from queues.
-     */
-    void cancelQueuedItems(PubSubService service, Collection<PublishedItem> items) {
-        for (PublishedItem item : items) {
-            service.getItemsToAdd().remove(item);
-            service.getItemsToDelete().remove(item);
-        }
-    }
-
     /**
 	 * Checks to see if the jid given is a component by looking at the routing
 	 * table. Similar to {@link InternalComponentManager#hasComponent(JID)}.
-	 * 
+	 *
 	 * @param jid
 	 * @return <tt>true</tt> if the JID is a component, <tt>false<.tt> if not.
 	 */

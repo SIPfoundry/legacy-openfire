@@ -30,6 +30,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import org.jivesoftware.openfire.archive.MonitoringConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -86,7 +87,7 @@ public class MonitoringDWR extends DWRServlet {
         Object bean = container.getBean("interface");
         if (bean instanceof DefaultInterfaceProcessor) {
             DefaultInterfaceProcessor processor = (DefaultInterfaceProcessor)bean;
-            processor.setOverridePath("/plugins/monitoring/dwr");
+            processor.setOverridePath("/plugins/"+MonitoringConstants.NAME+"/dwr");
         }
     }
 
@@ -126,7 +127,7 @@ public class MonitoringDWR extends DWRServlet {
         @Override
 		public String getPathInfo() {
             String pathInfo = super.getPathInfo();
-            return pathInfo.replaceAll("/monitoring/dwr", ""); 
+            return pathInfo.replaceAll("/"+MonitoringConstants.NAME+"/dwr", ""); 
         }
     }
 }

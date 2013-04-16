@@ -20,11 +20,15 @@
 
 package org.jivesoftware.openfire.pubsub;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.dom4j.Element;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
-
-import java.util.*;
 
 /**
  * A NodeAffiliate keeps information about the affiliation of an entity with a node. Possible
@@ -40,7 +44,7 @@ public class NodeAffiliate {
 
     private Affiliation affiliation;
 
-    NodeAffiliate(Node node, JID jid) {
+    public NodeAffiliate(Node node, JID jid) {
         this.node = node;
         this.jid = jid;
     }
@@ -57,7 +61,7 @@ public class NodeAffiliate {
         return affiliation;
     }
 
-    void setAffiliation(Affiliation affiliation) {
+    public void setAffiliation(Affiliation affiliation) {
         this.affiliation = affiliation;
     }
 
@@ -102,7 +106,7 @@ public class NodeAffiliate {
                     //
                     // If the node ID looks like a JID, replace it with the published item's node ID.
                     if (getNode().getNodeID().indexOf("@") >= 0) {
-                        items.addAttribute("node", publishedItem.getNode().getNodeID());                        
+                        items.addAttribute("node", publishedItem.getNodeID());                        
                     }
 
                     // Add item information to the event notification
@@ -222,11 +226,16 @@ public class NodeAffiliate {
             }
         }
         else {
-            // Affiliate should have at most one subscription so send the notification to
-            // the subscriber
+            // Affiliate should have at most one subscription per unique JID
             if (!notifySubscriptions.isEmpty()) {
-                NodeSubscription subscription = notifySubscriptions.get(0);
-                node.sendEventNotification(subscription.getJID(), notification, null);
+            	List<JID> subs = new ArrayList<JID>();
+            	for(NodeSubscription subscription: notifySubscriptions) {
+            		JID sub = subscription.getJID();
+            		if (!subs.contains(sub)) {
+            			node.sendEventNotification(subscription.getJID(), notification, null);
+            			subs.add(sub);
+            		}
+            	}
             }
         }
     }

@@ -119,7 +119,7 @@ public class ArchiveIndexer implements Startable {
 
     public void start() {
         searchDir = new File(JiveGlobals.getHomeDirectory() +
-                    File.separator + "monitoring" + File.separator + "search");
+                    File.separator + MonitoringConstants.NAME + File.separator + "search");
         if (!searchDir.exists()) {
             searchDir.mkdirs();
         }

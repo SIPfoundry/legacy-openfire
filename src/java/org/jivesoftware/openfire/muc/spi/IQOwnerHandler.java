@@ -35,6 +35,8 @@ import org.jivesoftware.openfire.muc.ConflictException;
 import org.jivesoftware.openfire.muc.ForbiddenException;
 import org.jivesoftware.openfire.muc.MUCRole;
 import org.jivesoftware.openfire.muc.cluster.RoomUpdatedEvent;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.LocaleUtils;
@@ -50,25 +52,30 @@ import org.xmpp.packet.PacketError;
 import org.xmpp.packet.Presence;
 
 /**
- * A handler for the IQ packet with namespace http://jabber.org/protocol/muc#owner. This kind of 
+ * A handler for the IQ packet with namespace http://jabber.org/protocol/muc#owner. This kind of
  * packets are usually sent by room owners. So this handler provides the necessary functionality
  * to support owner requirements such as: room configuration and room destruction.
  *
  * @author Gaston Dombiak
  */
 public class IQOwnerHandler {
-	
+
 	private static final Logger Log = LoggerFactory.getLogger(IQOwnerHandler.class);
 
-    private LocalMUCRoom room;
+    private final LocalMUCRoom room;
 
-    private PacketRouter router;
+    private final PacketRouter router;
 
     private DataForm configurationForm;
 
     private Element probeResult;
 
-    private boolean skipInvite;
+    private final boolean skipInvite;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
 
     public IQOwnerHandler(LocalMUCRoom chatroom, PacketRouter packetRouter) {
         this.room = chatroom;
@@ -97,8 +104,7 @@ public class IQOwnerHandler {
      * @throws ForbiddenException if the user does not have enough permissions (ie. is not an owner).
      * @throws ConflictException If the room was going to lose all of its owners.
      */
-    @SuppressWarnings("unchecked")
-	public void handleIQ(IQ packet, MUCRole role) throws ForbiddenException, ConflictException, CannotBeInvitedException {
+    public void handleIQ(IQ packet, MUCRole role) throws ForbiddenException, ConflictException, CannotBeInvitedException {
         // Only owners can send packets with the namespace "http://jabber.org/protocol/muc#owner"
         if (MUCRole.Affiliation.owner != role.getAffiliation()) {
             throw new ForbiddenException();
@@ -122,8 +128,12 @@ public class IQOwnerHandler {
                     }
                 }
 
-                room.destroyRoom(destroyElement.attributeValue("jid"), destroyElement
-                        .elementTextTrim("reason"));
+                JID alternateJID = null;
+                final String jid = destroyElement.attributeValue("jid");
+                if (jid != null) {
+                    alternateJID = new JID(jid);
+                }
+                room.destroyRoom(alternateJID, destroyElement.elementTextTrim("reason"));
             }
             else {
                 List<Element> itemsList = element.elements("item");
@@ -179,14 +189,17 @@ public class IQOwnerHandler {
                 // Create the result that will hold an item for each owner or admin
                 Element result = reply.setChildElement("query", "http://jabber.org/protocol/muc#owner");
 
+                // muc#owner shouldn't be used as namespace for owner and admin
+                // listings according to the newest versions of XEP-0045
+                // this code remains here for backwards compatibility
                 if ("owner".equals(affiliation)) {
                     // The client is requesting the list of owners
                     Element ownerMetaData;
                     MUCRole role;
-                    for (String jid : room.getOwners()) {
+                    for (JID jid : room.getOwners()) {
                         ownerMetaData = result.addElement("item", "http://jabber.org/protocol/muc#owner");
                         ownerMetaData.addAttribute("affiliation", "owner");
-                        ownerMetaData.addAttribute("jid", jid);
+                        ownerMetaData.addAttribute("jid", jid.toString());
                         // Add role and nick to the metadata if the user is in the room
                         try {
                             List<MUCRole> roles = room.getOccupantsByBareJID(jid);
@@ -202,10 +215,10 @@ public class IQOwnerHandler {
                     // The client is requesting the list of admins
                     Element adminMetaData;
                     MUCRole role;
-                    for (String jid : room.getAdmins()) {
+                    for (JID jid : room.getAdmins()) {
                         adminMetaData = result.addElement("item", "http://jabber.org/protocol/muc#owner");
                         adminMetaData.addAttribute("affiliation", "admin");
-                        adminMetaData.addAttribute("jid", jid);
+                        adminMetaData.addAttribute("jid", jid.toString());
                         // Add role and nick to the metadata if the user is in the room
                         try {
                             List<MUCRole> roles = room.getOccupantsByBareJID(jid);
@@ -262,6 +275,9 @@ public class IQOwnerHandler {
                 try {
                     for (JID jid : jids.keySet()) {
                         String targetAffiliation = jids.get(jid);
+                        // muc#owner shouldn't be used as namespace for owner and admin
+                        // changes according to the newest versions of XEP-0045
+                        // this code remains here for backwards compatibility
                         if ("owner".equals(targetAffiliation)) {
                             // Add the new user as an owner of the room
                             presences.addAll(room.addOwner(jid, senderRole));
@@ -270,7 +286,7 @@ public class IQOwnerHandler {
                             presences.addAll(room.addAdmin(jid, senderRole));
                         } else if ("member".equals(targetAffiliation)) {
                             // Add the new user as a member of the room
-                            boolean hadAffiliation = room.getAffiliation(jid.toBareJID()) != MUCRole.Affiliation.none;
+                            boolean hadAffiliation = room.getAffiliation(jid) != MUCRole.Affiliation.none;
                             presences.addAll(room.addMember(jid, null, senderRole));
                             // If the user had an affiliation don't send an invitation. Otherwise
                             // send an invitation if the room is members-only and skipping invites
@@ -320,7 +336,7 @@ public class IQOwnerHandler {
                 room.destroyRoom(null, null);
             }
             break;
-            
+
         case submit:
             // The owner is requesting an instant room
             if (completedForm.getFields().isEmpty()) {
@@ -340,7 +356,7 @@ public class IQOwnerHandler {
                 CacheFactory.doClusterTask(new RoomUpdatedEvent(room));
             }
             break;
-            
+
         default:
         	Log.warn("cannot handle data form element: " + formElement.asXML());
         	break;
@@ -365,17 +381,29 @@ public class IQOwnerHandler {
         // Get the new list of admins
         field = completedForm.getField("muc#roomconfig_roomadmins");
         boolean adminsSent = field != null;
-        List<String> admins = new ArrayList<String>();
+        List<JID> admins = new ArrayList<JID>();
         if (field != null) {
-        	admins.addAll(field.getValues());
+        	for (String value : field.getValues()) {
+        		// XEP-0045: "Affiliations are granted, revoked, and 
+        		// maintained based on the user's bare JID, (...)"
+                if (value != null && value.trim().length() != 0) {
+                    admins.add(new JID(value.trim()).asBareJID());
+                }
+        	}
         }
 
         // Get the new list of owners
         field = completedForm.getField("muc#roomconfig_roomowners");
         boolean ownersSent = field != null;
-        List<String> owners = new ArrayList<String>(); 
+        List<JID> owners = new ArrayList<JID>(); 
         if (field != null) {
-        	owners.addAll(field.getValues());
+        	for(String value : field.getValues()) {
+        		// XEP-0045: "Affiliations are granted, revoked, and 
+        		// maintained based on the user's bare JID, (...)"
+                if (value != null && value.trim().length() != 0) {
+        		    owners.add(new JID(value.trim()).asBareJID());
+                }
+        	}
         }
 
         // Answer a conflic error if all the current owners will be removed
@@ -431,7 +459,7 @@ public class IQOwnerHandler {
             boolean isPersistent = ("1".equals(booleanValue));
             // Delete the room from the DB if it's no longer persistent
             if (room.isPersistent() && !isPersistent) {
-                MUCPersistenceManager.deleteFromDB(room);
+            	provider.deleteFromDB(room);
             }
             room.setPersistent(isPersistent);
         }
@@ -526,22 +554,22 @@ public class IQOwnerHandler {
         if (ownersSent) {
             // Change the affiliation to "member" for the current owners that won't be neither
             // owner nor admin (if the form included the owners field)
-            List<String> ownersToRemove = new ArrayList<String>(room.owners);
+            List<JID> ownersToRemove = new ArrayList<JID>(room.owners);
             ownersToRemove.removeAll(admins);
             ownersToRemove.removeAll(owners);
-            for (String jid : ownersToRemove) {
-                presences.addAll(room.addMember(new JID(jid), null, senderRole));
+            for (JID jid : ownersToRemove) {
+                presences.addAll(room.addMember(jid, null, senderRole));
             }
         }
 
         if (adminsSent) {
             // Change the affiliation to "member" for the current admins that won't be neither
             // owner nor admin (if the form included the admins field)
-            List<String> adminsToRemove = new ArrayList<String>(room.admins);
+            List<JID> adminsToRemove = new ArrayList<JID>(room.admins);
             adminsToRemove.removeAll(admins);
             adminsToRemove.removeAll(owners);
-            for (String jid : adminsToRemove) {
-                presences.addAll(room.addMember(new JID(jid), null, senderRole));
+            for (JID jid : adminsToRemove) {
+                presences.addAll(room.addMember(jid, null, senderRole));
             }
         }
 
@@ -632,19 +660,19 @@ public class IQOwnerHandler {
 
             field = configurationForm.getField("muc#roomconfig_roomadmins");
             field.clearValues();
-            for (String jid : room.getAdmins()) {
-                field.addValue(jid);
+            for (JID jid : room.getAdmins()) {
+                field.addValue(jid.toString());
             }
 
             field = configurationForm.getField("muc#roomconfig_roomowners");
             field.clearValues();
-            for (String jid : room.getOwners()) {
-                field.addValue(jid);
+            for (JID jid : room.getOwners()) {
+                field.addValue(jid.toString());
             }
 
             // Remove the old element
             probeResult.remove(probeResult.element(QName.get("x", "jabber:x:data")));
-            // Add the new representation of configurationForm as an element 
+            // Add the new representation of configurationForm as an element
             probeResult.add(configurationForm.getElement());
 
         }
@@ -666,7 +694,7 @@ public class IQOwnerHandler {
         configurationForm.addField("FORM_TYPE", null, Type.hidden)
 				.addValue("http://jabber.org/protocol/muc#roomconfig");
 
-        configurationForm.addField("muc#roomconfig_roomname", 
+        configurationForm.addField("muc#roomconfig_roomname",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_roomname"),
 				Type.text_single);
 
@@ -677,7 +705,7 @@ public class IQOwnerHandler {
         configurationForm.addField("muc#roomconfig_changesubject",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_changesubject"),
         		Type.boolean_type);
-        
+
         final FormField maxUsers = configurationForm.addField(
         		"muc#roomconfig_maxusers",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_maxusers"),
@@ -697,7 +725,7 @@ public class IQOwnerHandler {
         broadcast.addOption(LocaleUtils.getLocalizedString("muc.form.conf.participant"), "participant");
         broadcast.addOption(LocaleUtils.getLocalizedString("muc.form.conf.visitor"), "visitor");
 
-        configurationForm.addField("muc#roomconfig_publicroom", 
+        configurationForm.addField("muc#roomconfig_publicroom",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_publicroom"),
         		Type.boolean_type);
 
@@ -730,7 +758,7 @@ public class IQOwnerHandler {
         configurationForm.addField("muc#roomconfig_roomsecret",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_roomsecret"),
         		Type.text_private);
-        
+
         final FormField whois = configurationForm.addField(
         		"muc#roomconfig_whois",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_whois"),
@@ -750,13 +778,16 @@ public class IQOwnerHandler {
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_canchangenick"),
         		Type.boolean_type);
 
+        configurationForm.addField(null, null, Type.fixed)
+                .addValue(LocaleUtils.getLocalizedString("muc.form.conf.owner_registration"));
+
         configurationForm.addField("x-muc#roomconfig_registration",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_registration"),
         		Type.boolean_type);
- 
+
         configurationForm.addField(null, null, Type.fixed)
-        		.addValue(LocaleUtils.getLocalizedString("muc.form.conf.owner_registration"));
-        
+                .addValue(LocaleUtils.getLocalizedString("muc.form.conf.roomadminsfixed"));
+
         configurationForm.addField("muc#roomconfig_roomadmins",
         		LocaleUtils.getLocalizedString("muc.form.conf.owner_roomadmins"),
         		Type.jid_multi);

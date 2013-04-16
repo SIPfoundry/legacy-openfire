@@ -29,6 +29,7 @@ import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.IntEnum;
 import org.jivesoftware.util.cache.CacheSizes;
 import org.jivesoftware.util.cache.Cacheable;
+import org.jivesoftware.util.cache.CannotCalculateSizeException;
 import org.jivesoftware.util.cache.ExternalizableUtil;
 import org.xmpp.packet.JID;
 
@@ -358,42 +359,25 @@ public class RosterItem implements Cacheable, Externalizable {
             }
 
             // Remove shared groups from the param
-            Collection<Group> existingGroups = GroupManager.getInstance().getSharedGroups();
             for (Iterator<String> it=groups.iterator(); it.hasNext();) {
                 String groupName = it.next();
                 try {
-                    // Optimistic approach for performance reasons. Assume first that the shared
-                    // group name is the same as the display name for the shared roster
-
-                    // Check if exists a shared group with this name
                     Group group = GroupManager.getInstance().getGroup(groupName);
-                    // Get the display name of the group
-                    String displayName = group.getProperties().get("sharedRoster.displayName");
-                    if (displayName != null && displayName.equals(groupName)) {
-                        // Remove the shared group from the list (since it exists)
-                        try {
-                            it.remove();
-                        }
-                        catch (IllegalStateException e) {
-                            // Do nothing
-                        }
-                    }
-                }
-                catch (GroupNotFoundException e) {
+                	if (RosterManager.isSharedGroup(group)) {
+                		it.remove();
+                	}
+                } catch (GroupNotFoundException e) {
                     // Check now if there is a group whose display name matches the requested group
-                    for (Group group : existingGroups) {
-                        // Get the display name of the group
-                        String displayName = group.getProperties().get("sharedRoster.displayName");
-                        if (displayName != null && displayName.equals(groupName)) {
-                            // Remove the shared group from the list (since it exists)
-                            try {
-                                it.remove();
-                            }
-                            catch (IllegalStateException ise) {
-                                // Do nothing
-                            }
-                        }
-                    }
+                	Collection<Group> groupsWithProp = GroupManager
+    						.getInstance()
+    						.search("sharedRoster.displayName", groupName);
+                	Iterator<Group> itr = groupsWithProp.iterator();
+                	while(itr.hasNext()) {
+                		Group group = itr.next();
+                    	if (RosterManager.isSharedGroup(group)) {
+                    		it.remove();
+                    	}
+                	}
                 }
             }
             this.groups = groups;
@@ -540,7 +524,7 @@ public class RosterItem implements Cacheable, Externalizable {
 	 * 
 	 * @see org.jivesoftware.util.cache.Cacheable#getCachedSize()
 	 */
-    public int getCachedSize() {
+    public int getCachedSize() throws CannotCalculateSizeException {
         int size = jid.toBareJID().length();
         size += CacheSizes.sizeOfString(nickname);
         size += CacheSizes.sizeOfCollection(groups);
@@ -554,7 +538,7 @@ public class RosterItem implements Cacheable, Externalizable {
     }
 
     public void writeExternal(ObjectOutput out) throws IOException {
-        ExternalizableUtil.getInstance().writeSafeUTF(out, jid.toString());
+        ExternalizableUtil.getInstance().writeSerializable(out, jid);
         ExternalizableUtil.getInstance().writeBoolean(out, nickname != null);
         if (nickname != null) {
             ExternalizableUtil.getInstance().writeSafeUTF(out, nickname);
@@ -569,7 +553,7 @@ public class RosterItem implements Cacheable, Externalizable {
     }
 
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        jid = new JID(ExternalizableUtil.getInstance().readSafeUTF(in));
+        jid = (JID) ExternalizableUtil.getInstance().readSerializable(in);
         if (ExternalizableUtil.getInstance().readBoolean(in)) {
             nickname = ExternalizableUtil.getInstance().readSafeUTF(in);
         }

@@ -35,6 +35,7 @@ import java.util.Set;
 
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -319,7 +320,7 @@ public class JDBCUserProvider implements UserProvider {
         ResultSet rs = null;
         try {
             StringBuilder sql = new StringBuilder(90);
-            sql.append("SELECT username FROM ofUser WHERE");
+            sql.append(searchSQL);
             boolean first = true;
             if (fields.contains("Username")) {
                 sql.append(" username LIKE ?");

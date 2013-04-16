@@ -19,11 +19,27 @@
  */
 package org.jivesoftware.openfire.reporting.stats;
 
-import org.jivesoftware.openfire.plugin.MonitoringPlugin;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.text.DateFormat;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.archive.Conversation;
 import org.jivesoftware.openfire.archive.ConversationManager;
+import org.jivesoftware.openfire.archive.MonitoringConstants;
+import org.jivesoftware.openfire.plugin.MonitoringPlugin;
 import org.jivesoftware.openfire.reporting.graph.GraphEngine;
-import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.stats.Statistic;
 import org.jivesoftware.openfire.user.UserNameManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
@@ -32,12 +48,6 @@ import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.Log;
 import org.jivesoftware.util.StringUtils;
 import org.xmpp.packet.JID;
-
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.text.DateFormat;
-import java.text.NumberFormat;
-import java.util.*;
 
 /**
  * Provides the server side callbacks for client side JavaScript functions for
@@ -78,7 +88,7 @@ public class StatsAction {
     }
 
     private Map getUpdatedStat(String statkey, long[] timePeriod) {
-        MonitoringPlugin plugin = (MonitoringPlugin)XMPPServer.getInstance().getPluginManager().getPlugin("monitoring");
+        MonitoringPlugin plugin = (MonitoringPlugin)XMPPServer.getInstance().getPluginManager().getPlugin(MonitoringConstants.NAME);
         StatsViewer viewer = (StatsViewer)plugin.getModule(StatsViewer.class);
         String[] lowHigh = getLowAndHigh(statkey, timePeriod);
         Map stat = new HashMap();
@@ -100,7 +110,7 @@ public class StatsAction {
     public List<Map<String, Long>> getNLatestConversations(int count, long mostRecentConversationID) {
         // TODO Fix plugin name 2 lines below and missing classes
         List<Map<String, Long>> cons = new ArrayList<Map<String, Long>>();
-        MonitoringPlugin plugin = (MonitoringPlugin)XMPPServer.getInstance().getPluginManager().getPlugin("monitoring");
+        MonitoringPlugin plugin = (MonitoringPlugin)XMPPServer.getInstance().getPluginManager().getPlugin(MonitoringConstants.NAME);
         ConversationManager conversationManager = (ConversationManager)plugin.getModule(ConversationManager.class);
         Collection<Conversation> conversations = conversationManager.getConversations();
         List<Conversation> lConversations = Arrays.asList(conversations.toArray(new Conversation[conversations.size()]));
@@ -130,7 +140,7 @@ public class StatsAction {
                 }
                 else {
                     users = new String[2];
-                    users[0] = LocaleUtils.getLocalizedString("dashboard.group_conversation", "monitoring");
+                    users[0] = LocaleUtils.getLocalizedString("dashboard.group_conversation", MonitoringConstants.NAME);
                     try {
                         users[1] = "(<i>" + LocaleUtils.getLocalizedString("muc.room.summary.room") +
                                 ": <a href='../../muc-room-occupants.jsp?roomName=" +
@@ -159,7 +169,7 @@ public class StatsAction {
      * @return low and high values for the given time period / number of datapoints
      */
     public static String[] getLowAndHigh(String key,  long[] timePeriod) {
-        MonitoringPlugin plugin = (MonitoringPlugin)XMPPServer.getInstance().getPluginManager().getPlugin("monitoring");
+        MonitoringPlugin plugin = (MonitoringPlugin)XMPPServer.getInstance().getPluginManager().getPlugin(MonitoringConstants.NAME);
         StatsViewer viewer = (StatsViewer)plugin.getModule(StatsViewer.class);
         Statistic.Type type = viewer.getStatistic(key)[0].getStatType();
         double[] lows = viewer.getMin(key, timePeriod[0], timePeriod[1], (int)timePeriod[2]);

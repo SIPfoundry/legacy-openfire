@@ -15,14 +15,11 @@
  */
 package org.jivesoftware.openfire.pep;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.concurrent.locks.Lock;
 
-import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.CollectionNode;
 import org.jivesoftware.openfire.pubsub.Node;
 import org.jivesoftware.openfire.pubsub.PubSubEngine;
@@ -37,29 +34,32 @@ import org.xmpp.packet.JID;
 /**
  * Manages the creation, persistence and removal of {@link PEPService}
  * instances.
- * 
+ *
  * @author Guus der Kinderen, guus.der.kinderen@gmail.com
- * 
+ *
  */
 public class PEPServiceManager {
 
 	public static final Logger Log = LoggerFactory
 			.getLogger(PEPServiceManager.class);
 
-	private final static String GET_PEP_SERVICE = "SELECT DISTINCT serviceID FROM ofPubsubNode WHERE serviceID=?";
-
 	/**
 	 * Cache of PEP services. Table, Key: bare JID (String); Value: PEPService
 	 */
 	private final Cache<String, PEPService> pepServices = CacheFactory
-			.createCache("PEPServiceManager");
+			.createLocalCache("PEPServiceManager");
 
 	private PubSubEngine pubSubEngine = null;
 
-	/**
+    /**
+     * Provider for underlying storage
+     */
+    private final PubSubProvider provider = ProviderFactory.getPubsubProvider();
+
+    /**
 	 * Retrieves a PEP service -- attempting first from memory, then from the
 	 * database.
-	 * 
+	 *
 	 * @param jid
 	 *            the bare JID of the user that owns the PEP service.
 	 * @return the requested PEP service if found or null if not found.
@@ -129,42 +129,21 @@ public class PEPServiceManager {
 	 */
 	private PEPService loadPEPServiceFromDB(String jid) {
 		PEPService pepService = null;
-
-		Connection con = null;
-		PreparedStatement pstmt = null;
-		ResultSet rs = null;
-		try {
-			con = DbConnectionManager.getConnection();
-			// Get all PEP services
-			pstmt = con.prepareStatement(GET_PEP_SERVICE);
-			pstmt.setString(1, jid);
-			rs = pstmt.executeQuery();
-			// Restore old PEPServices
-			while (rs.next()) {
-				String serviceID = rs.getString(1);
-
-				// Create a new PEPService
-				pepService = new PEPService(XMPPServer.getInstance(), serviceID);
-				pepServices.put(serviceID, pepService);
-				pubSubEngine.start(pepService);
-
-				if (Log.isDebugEnabled()) {
-					Log.debug("PEP: Restored service for " + serviceID
-							+ " from the database.");
-				}
-			}
-		} catch (SQLException sqle) {
-			Log.error(sqle.getMessage(), sqle);
-		} finally {
-			DbConnectionManager.closeConnection(rs, pstmt, con);
+		
+		String serviceName = provider.loadPEPServiceFromDB(jid);
+		if (serviceName != null) {
+		// Create a new PEPService
+		pepService = new PEPService(XMPPServer.getInstance(), serviceName);
+		pepServices.put(serviceName, pepService);
+		start(pepService);
 		}
-
+		
 		return pepService;
 	}
 
 	/**
 	 * Deletes the {@link PEPService} belonging to the specified owner.
-	 * 
+	 *
 	 * @param owner
 	 *            The JID of the owner of the service to be deleted.
 	 */
@@ -214,7 +193,7 @@ public class PEPServiceManager {
 	public void process(PEPService service, IQ iq) {
 		pubSubEngine.process(service, iq);
 	}
-	
+
 	public boolean hasCachedService(JID owner) {
 		return pepServices.get(owner) != null;
 	}

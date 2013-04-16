@@ -19,6 +19,25 @@
 
 package org.jivesoftware.openfire.archive;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.TimerTask;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
+
 import org.dom4j.Element;
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
@@ -32,7 +51,13 @@ import org.jivesoftware.openfire.component.InternalComponentManager;
 import org.jivesoftware.openfire.reporting.util.TaskEngine;
 import org.jivesoftware.openfire.stats.Statistic;
 import org.jivesoftware.openfire.stats.StatisticsManager;
-import org.jivesoftware.util.*;
+import org.jivesoftware.util.JiveConstants;
+import org.jivesoftware.util.JiveGlobals;
+import org.jivesoftware.util.LocaleUtils;
+import org.jivesoftware.util.NotFoundException;
+import org.jivesoftware.util.PropertyEventDispatcher;
+import org.jivesoftware.util.PropertyEventListener;
+import org.jivesoftware.util.StringUtils;
 import org.jivesoftware.util.cache.CacheFactory;
 import org.picocontainer.Startable;
 import org.slf4j.Logger;
@@ -40,16 +65,6 @@ import org.slf4j.LoggerFactory;
 import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * Manages all conversations in the system. Optionally, conversations (messages plus
@@ -75,8 +90,8 @@ public class ConversationManager implements Startable, ComponentEventListener {
     private static final String UPDATE_PARTICIPANT =
             "UPDATE ofConParticipant SET leftDate=? WHERE conversationID=? AND bareJID=? AND jidResource=? AND joinedDate=?";
     private static final String INSERT_MESSAGE =
-            "INSERT INTO ofMessageArchive(conversationID, fromJID, toJID, sentDate, body) " +
-                    "VALUES (?,?,?,?,?)";
+            "INSERT INTO ofMessageArchive(conversationID, fromJID, fromJIDResource, toJID, toJIDResource, sentDate, body) " +
+                    "VALUES (?,?,?,?,?,?,?)";
     private static final String CONVERSATION_COUNT =
             "SELECT COUNT(*) FROM ofConversation";
     private static final String MESSAGE_COUNT =
@@ -193,7 +208,7 @@ public class ConversationManager implements Startable, ComponentEventListener {
         Statistic conversationStat = new Statistic() {
 
             public String getName() {
-                return LocaleUtils.getLocalizedString("stat.conversation.name", "monitoring");
+                return LocaleUtils.getLocalizedString("stat.conversation.name", MonitoringConstants.NAME);
             }
 
             public Type getStatType() {
@@ -201,11 +216,11 @@ public class ConversationManager implements Startable, ComponentEventListener {
             }
 
             public String getDescription() {
-                return LocaleUtils.getLocalizedString("stat.conversation.desc", "monitoring");
+                return LocaleUtils.getLocalizedString("stat.conversation.desc", MonitoringConstants.NAME);
             }
 
             public String getUnits() {
-                return LocaleUtils.getLocalizedString("stat.conversation.units", "monitoring");
+                return LocaleUtils.getLocalizedString("stat.conversation.units", MonitoringConstants.NAME);
             }
 
             public double sample() {
@@ -880,10 +895,12 @@ public class ConversationManager implements Startable, ComponentEventListener {
                     int count = 0;
                     while ((message = messageQueue.poll()) != null) {
                         pstmt.setLong(1, message.getConversationID());
-                        pstmt.setString(2, message.getFromJID().toString());
-                        pstmt.setString(3, message.getToJID().toString());
-                        pstmt.setLong(4, message.getSentDate().getTime());
-                        DbConnectionManager.setLargeTextField(pstmt, 5, message.getBody());
+                        pstmt.setString(2, message.getFromJID().toBareJID());
+                        pstmt.setString(3, message.getFromJID().getResource());
+                        pstmt.setString(4, message.getToJID().toBareJID());
+                        pstmt.setString(5, message.getToJID().getResource());
+                        pstmt.setLong(6, message.getSentDate().getTime());
+                        DbConnectionManager.setLargeTextField(pstmt, 7, message.getBody());
                         if (DbConnectionManager.isBatchUpdatesSupported()) {
                             pstmt.addBatch();
                         }

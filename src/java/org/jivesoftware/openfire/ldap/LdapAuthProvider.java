@@ -23,8 +23,8 @@ package org.jivesoftware.openfire.ldap;
 import javax.naming.CommunicationException;
 
 import org.jivesoftware.openfire.XMPPServer;
-import org.jivesoftware.openfire.auth.AuthProvider;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
+import org.jivesoftware.openfire.provider.AuthProvider;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.StringUtils;

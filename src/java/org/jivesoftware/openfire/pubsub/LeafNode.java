@@ -21,19 +21,17 @@
 package org.jivesoftware.openfire.pubsub;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.dom4j.Element;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.util.LocaleUtils;
-import org.jivesoftware.util.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.xmpp.forms.DataForm;
 import org.xmpp.forms.FormField;
 import org.xmpp.packet.IQ;
@@ -48,7 +46,8 @@ import org.xmpp.packet.Message;
  */
 public class LeafNode extends Node {
 
-	private static final Logger Log = LoggerFactory.getLogger(LeafNode.class);
+	private static final String genIdSeed = UUID.randomUUID().toString();
+	private static final AtomicLong sequenceCounter = new AtomicLong();
 
     /**
      * Flag that indicates whether to persist items to storage. Note that when the
@@ -72,12 +71,14 @@ public class LeafNode extends Node {
      */
     private boolean sendItemSubscribe;
     /**
-     * List of items that were published to the node and that are still active. If the node is
-     * not configured to persist items then the last published item will be kept. The list is
-     * sorted cronologically.
+     * The last item published to this node.  In a cluster this may have occurred on a different cluster node.
      */
-    protected final List<PublishedItem> publishedItems = new ArrayList<PublishedItem>();
-    protected Map<String, PublishedItem> itemsByID = new HashMap<String, PublishedItem>();
+    private PublishedItem lastPublished;
+
+    /**
+     * Provider for the underlying storage
+     */
+    private final PubSubProvider pubSubProvider = ProviderFactory.getPubsubProvider();
 
     // TODO Add checking of max payload size. Return <not-acceptable> plus a application specific error condition of <payload-too-big/>.
 
@@ -92,7 +93,7 @@ public class LeafNode extends Node {
     }
 
     @Override
-	void configure(FormField field) {
+	protected void configure(FormField field) throws NotAcceptableException {
         List<String> values;
         String booleanValue;
         if ("pubsub#persist_items".equals(field.getVariable())) {
@@ -125,18 +126,14 @@ public class LeafNode extends Node {
                 maxPublishedItems = values.size() > 0 ? Integer.parseInt(values.get(0)) : 50;
             }
         }
-        synchronized (publishedItems) {
-            // Remove stored published items based on the new max items
-            while (!publishedItems.isEmpty() && isMaxItemsReached())
-            {
-                removeItem(0);
-            }
-        }
     }
 
     @Override
 	protected void addFormFields(DataForm form, boolean isEditing) {
         super.addFormFields(form, isEditing);
+
+        FormField typeField = form.getField("pubsub#node_type");
+        typeField.addValue("leaf");
 
         FormField formField = form.addField();
         formField.setVariable("pubsub#send_item_subscribe");
@@ -175,19 +172,13 @@ public class LeafNode extends Node {
 
     @Override
 	protected void deletingNode() {
-        synchronized (publishedItems) {
-            // Remove stored published items
-            while (!publishedItems.isEmpty()) {
-                removeItem(0);
-            }
-        }
     }
 
-    void addPublishedItem(PublishedItem item) {
-        synchronized (publishedItems) {
-            publishedItems.add(item);
-            itemsByID.put(item.getID(), item);
-        }
+	public synchronized void setLastPublishedItem(PublishedItem item)
+	{
+		if ((lastPublished == null) || (item != null) && item.getCreationDate().after(lastPublished.getCreationDate())) {
+			lastPublished = item;
+		}
     }
 
     public int getMaxPayloadSize() {
@@ -250,42 +241,22 @@ public class LeafNode extends Node {
                 itemID = item.attributeValue("id");
                 List entries = item.elements();
                 payload = entries.isEmpty() ? null : (Element) entries.get(0);
-                // Create a published item from the published data and add it to the node and the db
-                synchronized (publishedItems) {
-                    // Make sure that the published item has a unique ID if NOT assigned by publisher
-                    if (itemID == null) {
-                    	do {
-                    		itemID = StringUtils.randomString(15);
-                    	}
-                        while (itemsByID.containsKey(itemID));
-                    }
 
-                    // Create a new published item
-                    newItem = new PublishedItem(this, publisher, itemID, new Date());
-                    newItem.setPayload(payload);
-                    // Add the new item to the list of published items
-                    newPublishedItems.add(newItem);
+                // Make sure that the published item has a unique ID if NOT assigned by publisher
+                if (itemID == null) {
+                	itemID = genIdSeed + sequenceCounter.getAndIncrement();
+                }
 
-                    // Check and remove any existing items that have the matching ID,
-                    // generated ID's won't match since we already checked.
-                    PublishedItem duplicate = itemsByID.get(newItem.getID());
-                    
-                    if (duplicate != null)
-                    {
-                    	removeItem(findIndexById(duplicate.getID()));
-                    }
-
-                    // Add the published item to the list of items to persist (using another thread)
-                    // but check that we don't exceed the limit. Remove oldest items if required.
-                    while (!publishedItems.isEmpty() && isMaxItemsReached())
-                    {
-                        removeItem(0);
-                    }
-                    
-                    addPublishedItem(newItem);
-                    // Add the new published item to the queue of items to add to the database. The
-                    // queue is going to be processed by another thread
-                    service.queueItemToAdd(newItem);
+                // Create a new published item
+                newItem = new PublishedItem(this, publisher, itemID, new Date());
+                newItem.setPayload(payload);
+                // Add the new item to the list of published items
+                newPublishedItems.add(newItem);
+                setLastPublishedItem(newItem);
+                // Add the new published item to the queue of items to add to the database. The
+                // queue is going to be processed by another thread
+                if (isPersistPublishedItems()) {
+                	pubSubProvider.savePublishedItem(newItem);
                 }
             }
         }
@@ -307,31 +278,6 @@ public class LeafNode extends Node {
         }
     }
 
-	/**
-     * Must be called from code synchronized on publishedItems
-     */
-    private int findIndexById(String id) {
-    	for (int i=0; i<publishedItems.size(); i++)
-    	{
-    		PublishedItem item = publishedItems.get(i);
-    		
-			if (item.getID().equals(id))
-				return i;
-		}
-		return -1;
-	}
-
-	/**
-     * Must be called from code synchronized on publishedItems
-     */
-	private void removeItem(int index) {
-        PublishedItem removedItem = publishedItems.remove(index);
-		itemsByID.remove(removedItem.getID());
-		// Add the removed item to the queue of items to delete from the database. The
-		// queue is going to be processed by another thread
-		service.queueItemToRemove(removedItem);
-	}
-
     /**
      * Deletes the list of published items from the node. Event notifications may be sent to
      * subscribers for the deleted items. When an affiliate has many subscriptions to the node,
@@ -345,17 +291,9 @@ public class LeafNode extends Node {
      * @param toDelete list of items that were deleted from the node.
      */
     public void deleteItems(List<PublishedItem> toDelete) {
-        synchronized (publishedItems) {
-            for (PublishedItem item : toDelete) {
-                // Remove items to delete from memory
-                publishedItems.remove(item);
-                // Update fast look up cache of published items
-                itemsByID.remove(item.getID());
-            }
-        }
         // Remove deleted items from the database
         for (PublishedItem item : toDelete) {
-            service.queueItemToRemove(item);
+        	pubSubProvider.removePublishedItem(item);
         }
         if (isNotifiedOfRetract()) {
             // Broadcast notification deletion to subscribers
@@ -394,7 +332,7 @@ public class LeafNode extends Node {
         Element pubsubElem = result.setChildElement("pubsub", "http://jabber.org/protocol/pubsub");
         Element items = pubsubElem.addElement("items");
         items.addAttribute("node", getNodeID());
-        
+
         for (PublishedItem publishedItem : publishedItems) {
             Element item = items.addElement("item");
             if (isItemRequired()) {
@@ -414,42 +352,25 @@ public class LeafNode extends Node {
         if (!isItemRequired()) {
             return null;
         }
-        synchronized (publishedItems) {
-            return itemsByID.get(itemID);
-        }
+        return pubSubProvider.getPublishedItem(this, itemID);
     }
 
     @Override
 	public List<PublishedItem> getPublishedItems() {
-        synchronized (publishedItems) {
-            return Collections.unmodifiableList(publishedItems);
-        }
+        return pubSubProvider.getPublishedItems(this, getMaxPublishedItems());
     }
 
     @Override
 	public List<PublishedItem> getPublishedItems(int recentItems) {
-        synchronized (publishedItems) {
-            int size = publishedItems.size();
-            if (recentItems > size) {
-                // User requested more items than the one the node has so return the current list
-                return Collections.unmodifiableList(publishedItems);
-            }
-            else {
-                // Return the number of recent items the user requested
-                List<PublishedItem> recent = publishedItems.subList(size - recentItems, size);
-                return new ArrayList<PublishedItem>(recent);
-            }
-        }
+        return pubSubProvider.getPublishedItems(this, recentItems);
     }
 
     @Override
-	public PublishedItem getLastPublishedItem() {
-        synchronized (publishedItems) {
-            if (publishedItems.isEmpty()) {
-                return null;
-            }
-            return publishedItems.get(publishedItems.size()-1);
-        }
+	public synchronized PublishedItem getLastPublishedItem() {
+    	if (lastPublished == null){
+    		lastPublished = pubSubProvider.getLastPublishedItem(this);
+    	}
+    	return lastPublished;
     }
 
     /**
@@ -462,19 +383,19 @@ public class LeafNode extends Node {
         return sendItemSubscribe;
     }
 
-    void setMaxPayloadSize(int maxPayloadSize) {
+    public void setMaxPayloadSize(int maxPayloadSize) {
         this.maxPayloadSize = maxPayloadSize;
     }
 
-    void setPersistPublishedItems(boolean persistPublishedItems) {
+    public void setPersistPublishedItems(boolean persistPublishedItems) {
         this.persistPublishedItems = persistPublishedItems;
     }
 
-    void setMaxPublishedItems(int maxPublishedItems) {
+    public void setMaxPublishedItems(int maxPublishedItems) {
         this.maxPublishedItems = maxPublishedItems;
     }
 
-    void setSendItemSubscribe(boolean sendItemSubscribe) {
+    public void setSendItemSubscribe(boolean sendItemSubscribe) {
         this.sendItemSubscribe = sendItemSubscribe;
     }
 
@@ -484,38 +405,14 @@ public class LeafNode extends Node {
      * published items will be deleted with the exception of the last published item.
      */
     public void purge() {
-        List<PublishedItem> toDelete = null;
-        // Calculate items to delete
-        synchronized (publishedItems) {
-            if (publishedItems.size() > 1) {
-                // Remove all items except the last one
-                toDelete = new ArrayList<PublishedItem>(
-                        publishedItems.subList(0, publishedItems.size() - 1));
-                // Remove items to delete from memory
-                publishedItems.removeAll(toDelete);
-                // Update fast look up cache of published items
-                itemsByID = new HashMap<String, PublishedItem>();
-                itemsByID.put(publishedItems.get(0).getID(), publishedItems.get(0));
-            }
-        }
-        if (toDelete != null) {
-            // Delete purged items from the database
-            for (PublishedItem item : toDelete) {
-                service.queueItemToRemove(item);
-            }
-            // Broadcast purge notification to subscribers
-            // Build packet to broadcast to subscribers
-            Message message = new Message();
-            Element event = message.addChildElement("event", "http://jabber.org/protocol/pubsub#event");
-            Element items = event.addElement("purge");
-            items.addAttribute("node", nodeID);
-            // Send notification that the node configuration has changed
-            broadcastNodeEvent(message, false);
-        }
-    }
-    
-    private boolean isMaxItemsReached()
-    {
-    	return (maxPublishedItems > -1 ) && (publishedItems.size() >= maxPublishedItems);
+    	pubSubProvider.purgeNode(this);
+        // Broadcast purge notification to subscribers
+        // Build packet to broadcast to subscribers
+        Message message = new Message();
+        Element event = message.addChildElement("event", "http://jabber.org/protocol/pubsub#event");
+        Element items = event.addElement("purge");
+        items.addAttribute("node", nodeID);
+        // Send notification that the node configuration has changed
+        broadcastNodeEvent(message, false);
     }
 }

@@ -19,31 +19,46 @@
  */
 package org.jivesoftware.openfire.reporting.graph;
 
-import org.jivesoftware.openfire.plugin.MonitoringPlugin;
-import org.jivesoftware.openfire.reporting.stats.StatsViewer;
-import com.lowagie.text.*;
-import com.lowagie.text.Image;
-import com.lowagie.text.pdf.*;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.geom.Rectangle2D;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
 
+import javax.servlet.ServletException;
+import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.ServletException;
-import javax.servlet.ServletOutputStream;
-import java.io.IOException;
-import java.io.ByteArrayOutputStream;
-import java.util.*;
-import java.util.List;
-import java.awt.geom.Rectangle2D;
-import java.awt.*;
-import java.awt.Font;
 
+import org.jfree.chart.JFreeChart;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.archive.MonitoringConstants;
+import org.jivesoftware.openfire.plugin.MonitoringPlugin;
+import org.jivesoftware.openfire.reporting.stats.StatsViewer;
 import org.jivesoftware.openfire.stats.Statistic;
+import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.Log;
 import org.jivesoftware.util.ParamUtils;
-import org.jivesoftware.util.JiveGlobals;
-import org.jfree.chart.JFreeChart;
+
+import com.lowagie.text.Chunk;
+import com.lowagie.text.Document;
+import com.lowagie.text.DocumentException;
+import com.lowagie.text.FontFactory;
+import com.lowagie.text.Image;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.pdf.DefaultFontMapper;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfPageEventHelper;
+import com.lowagie.text.pdf.PdfTemplate;
+import com.lowagie.text.pdf.PdfWriter;
 
 /**
  *
@@ -56,7 +71,7 @@ public class GraphServlet extends HttpServlet {
 	public void init() throws ServletException {
         // load dependencies
         MonitoringPlugin plugin =
-                (MonitoringPlugin) XMPPServer.getInstance().getPluginManager().getPlugin("monitoring");
+                (MonitoringPlugin) XMPPServer.getInstance().getPluginManager().getPlugin(MonitoringConstants.NAME);
         this.graphEngine = (GraphEngine) plugin.getModule(GraphEngine.class);
         this.statsViewer = (StatsViewer)plugin.getModule(StatsViewer.class);
     }
@@ -224,7 +239,7 @@ public class GraphServlet extends HttpServlet {
                 cb.stroke();
 
                 Image gif = Image.getInstance("http://" + request.getServerName() +
-                    ":" + request.getServerPort() + "/plugins/monitoring/images/pdf_generatedbyof.gif");
+                    ":" + request.getServerPort() + "/plugins/"+MonitoringConstants.NAME+"/images/pdf_generatedbyof.gif");
                 cb.addImage(gif, 221, 0, 0, 28, (int)document.leftMargin(), (int)document.bottomMargin());
 
             } catch (Exception e) {

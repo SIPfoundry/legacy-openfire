@@ -352,15 +352,15 @@ public class Conversation implements Externalizable {
                     String joinBody;
                     String leftBody;
                     if (anonymous) {
-                        joinBody = LocaleUtils.getLocalizedString("muc.conversation.joined.anonymous", "monitoring",
+                        joinBody = LocaleUtils.getLocalizedString("muc.conversation.joined.anonymous", MonitoringConstants.NAME,
                                 Arrays.asList(participation.getNickname()));
-                        leftBody = LocaleUtils.getLocalizedString("muc.conversation.left.anonymous", "monitoring",
+                        leftBody = LocaleUtils.getLocalizedString("muc.conversation.left.anonymous", MonitoringConstants.NAME,
                                 Arrays.asList(participation.getNickname()));
                     }
                     else {
-                        joinBody = LocaleUtils.getLocalizedString("muc.conversation.joined", "monitoring",
+                        joinBody = LocaleUtils.getLocalizedString("muc.conversation.joined", MonitoringConstants.NAME,
                                 Arrays.asList(participation.getNickname(), name));
-                        leftBody = LocaleUtils.getLocalizedString("muc.conversation.left", "monitoring",
+                        leftBody = LocaleUtils.getLocalizedString("muc.conversation.left", MonitoringConstants.NAME,
                                 Arrays.asList(participation.getNickname(), name));
                     }
                     messages.add(
@@ -495,7 +495,7 @@ public class Conversation implements Externalizable {
                     pstmt.setLong(1, conversationID);
                     pstmt.setLong(2, participation.getJoined().getTime());
                     pstmt.setString(3, user.toBareJID());
-                    pstmt.setString(4, user.getResource() == null ? " " : user.getResource());
+                    pstmt.setString(4, user.getResource() == null ? "" : user.getResource());
                     pstmt.setString(5, participation.getNickname());
                     pstmt.executeUpdate();
                 }
@@ -527,7 +527,7 @@ public class Conversation implements Externalizable {
             pstmt.setLong(1, conversationID);
             pstmt.setLong(2, joined);
             pstmt.setString(3, participant.toBareJID());
-            pstmt.setString(4, participant.getResource());
+            pstmt.setString(4, participant.getResource() == null ? "" : participant.getResource());
             pstmt.setString(5, nickname);
             pstmt.executeUpdate();
             pstmt.close();
@@ -624,7 +624,7 @@ public class Conversation implements Externalizable {
 
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         MonitoringPlugin plugin = (MonitoringPlugin) XMPPServer.getInstance().getPluginManager().getPlugin(
-                "monitoring");
+        		MonitoringConstants.NAME);
         conversationManager = (ConversationManager) plugin.getModule(ConversationManager.class);
 
 

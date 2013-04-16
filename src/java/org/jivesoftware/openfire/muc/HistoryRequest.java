@@ -20,18 +20,15 @@
 
 package org.jivesoftware.openfire.muc;
 
-import java.text.DateFormat;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.ListIterator;
-import java.util.TimeZone;
 
 import org.dom4j.Element;
 import org.jivesoftware.openfire.muc.spi.LocalMUCRole;
-import org.jivesoftware.util.JiveConstants;
+import org.jivesoftware.util.XMPPDateTimeFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.Message;
@@ -51,14 +48,7 @@ import org.xmpp.packet.Message;
 public class HistoryRequest {
 
 	private static final Logger Log = LoggerFactory.getLogger(HistoryRequest.class);
-
-    private static final DateFormat formatter = new SimpleDateFormat(JiveConstants.XMPP_DATETIME_FORMAT);
-    private static final DateFormat delayedFormatter = new SimpleDateFormat(
-            JiveConstants.XMPP_DELAY_DATETIME_FORMAT);
-    static {
-        delayedFormatter.setTimeZone(TimeZone.getTimeZone("UTC"));
-        formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+	private static final XMPPDateTimeFormat xmppDateTime = new XMPPDateTimeFormat();
 
     private int maxChars = -1;
     private int maxStanzas = -1;
@@ -79,10 +69,8 @@ public class HistoryRequest {
             }
             if (history.attribute("since") != null) {
                 try {
-                    // parse utc into Date
-                    synchronized (formatter) {
-                        this.since = formatter.parse(history.attributeValue("since"));
-                    }
+                    // parse since String into Date
+                    this.since = xmppDateTime.parseString(history.attributeValue("since"));
                 }
                 catch(ParseException pe) {
                     Log.error("Error parsing date from history management", pe);
@@ -149,9 +137,9 @@ public class HistoryRequest {
      */
     public void sendHistory(LocalMUCRole joinRole, MUCRoomHistory roomHistory) {
         if (!isConfigured()) {
-            Iterator history = roomHistory.getMessageHistory();
+            Iterator<Message> history = roomHistory.getMessageHistory();
             while (history.hasNext()) {
-                joinRole.send((Message) history.next());
+                joinRole.send(history.next());
             }
         }
         else {
@@ -164,14 +152,13 @@ public class HistoryRequest {
                 }
                 return;
             }
-            Message message;
             int accumulatedChars = 0;
             int accumulatedStanzas = 0;
             Element delayInformation;
             LinkedList<Message> historyToSend = new LinkedList<Message>();
-            ListIterator iterator = roomHistory.getReverseMessageHistory();
+            ListIterator<Message> iterator = roomHistory.getReverseMessageHistory();
             while (iterator.hasPrevious()) {
-                message = (Message)iterator.previous();
+                Message message = iterator.previous();
                 // Update number of characters to send
                 String text = message.getBody() == null ? message.getSubject() : message.getBody();
                 if (text == null) {
@@ -194,12 +181,8 @@ public class HistoryRequest {
                     delayInformation = message.getChildElement("x", "jabber:x:delay");
                     try {
                         // Get the date when the historic message was sent
-                        Date delayedDate;
-                        synchronized (delayedFormatter) {
-                            delayedDate = delayedFormatter
-                                    .parse(delayInformation.attributeValue("stamp"));
-                        }
-                        if (getSince() != null && delayedDate.before(getSince())) {
+                        Date delayedDate = xmppDateTime.parseString(delayInformation.attributeValue("stamp"));
+                        if (getSince() != null && delayedDate != null && delayedDate.before(getSince())) {
                             // Stop collecting history since we have exceded a limit
                             break;
                         }

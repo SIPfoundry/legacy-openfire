@@ -20,6 +20,7 @@
 package org.jivesoftware.openfire.archive.cluster;
 
 import org.jivesoftware.openfire.archive.ConversationManager;
+import org.jivesoftware.openfire.archive.MonitoringConstants;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.plugin.MonitoringPlugin;
 import org.jivesoftware.util.cache.ClusterTask;
@@ -43,7 +44,7 @@ public class GetConversationCountTask implements ClusterTask {
 
     public void run() {
         MonitoringPlugin plugin = (MonitoringPlugin) XMPPServer.getInstance().getPluginManager().getPlugin(
-            "monitoring");
+            MonitoringConstants.NAME);
         ConversationManager conversationManager = (ConversationManager)plugin.getModule(ConversationManager.class);
         conversationCount = conversationManager.getConversationCount();
     }

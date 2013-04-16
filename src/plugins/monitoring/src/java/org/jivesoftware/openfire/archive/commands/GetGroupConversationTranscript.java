@@ -34,6 +34,7 @@ import org.jivesoftware.openfire.archive.ArchiveSearcher;
 import org.jivesoftware.openfire.archive.Conversation;
 import org.jivesoftware.openfire.archive.ConversationManager;
 import org.jivesoftware.openfire.archive.ConversationUtils;
+import org.jivesoftware.openfire.archive.MonitoringConstants;
 import org.jivesoftware.openfire.commands.AdHocCommand;
 import org.jivesoftware.openfire.commands.SessionData;
 import org.jivesoftware.openfire.component.InternalComponentManager;
@@ -101,7 +102,7 @@ public class GetGroupConversationTranscript extends AdHocCommand {
         Element note = command.addElement("note");
         // Get handle on the Monitoring plugin
         MonitoringPlugin plugin = (MonitoringPlugin) XMPPServer.getInstance().getPluginManager()
-                .getPlugin("monitoring");
+                .getPlugin(MonitoringConstants.NAME);
         ConversationManager conversationManager =
                 (ConversationManager) plugin.getModule(ConversationManager.class);
         if (!conversationManager.isArchivingEnabled()) {

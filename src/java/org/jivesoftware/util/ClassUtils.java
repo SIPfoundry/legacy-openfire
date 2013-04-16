@@ -39,12 +39,13 @@ public class ClassUtils {
 
     /**
      * Loads the class with the specified name.
+     * @param <T>
      *
      * @param className the name of the class
      * @return the resulting <code>Class</code> object
      * @throws ClassNotFoundException if the class was not found
      */
-    public static Class forName(String className) throws ClassNotFoundException {
+    public static <T> Class<T> forName(String className) throws ClassNotFoundException {
         return instance.loadClass(className);
     }
 
@@ -63,8 +64,8 @@ public class ClassUtils {
      */
     private ClassUtils() {}
 
-    public Class loadClass(String className) throws ClassNotFoundException {
-        Class theClass = null;
+    public <T> Class<T> loadClass(String className) throws ClassNotFoundException {
+        Class<?> theClass = null;
         try {
             theClass = Class.forName(className);
         }
@@ -76,7 +77,7 @@ public class ClassUtils {
                 theClass = getClass().getClassLoader().loadClass(className);
             }
         }
-        return theClass;
+        return (Class<T>)theClass;
     }
 
     private InputStream loadResource(String name) {

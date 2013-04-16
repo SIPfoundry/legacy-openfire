@@ -105,6 +105,10 @@ public class DefaultLocalCacheStrategy implements CacheFactoryStrategy {
     public void updateCacheStats(Map<String, Cache> caches) {
     }
 
+	public String getPluginName() {
+		return "local";
+	}
+
     public Lock getLock(Object key, Cache cache) {
         Object lockKey = key;
         if (key instanceof String) {
@@ -200,4 +204,9 @@ public class DefaultLocalCacheStrategy implements CacheFactoryStrategy {
             this.lock = lock;
         }
     }
+
+	public ClusterNodeInfo getClusterNodeInfo(byte[] nodeID) {
+		// not clustered
+		return null;
+	}
 }

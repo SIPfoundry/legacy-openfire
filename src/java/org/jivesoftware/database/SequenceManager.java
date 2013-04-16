@@ -20,13 +20,11 @@
 
 package org.jivesoftware.database;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.UIDProvider;
 import org.jivesoftware.util.JiveConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,17 +55,12 @@ public class SequenceManager {
 
 	private static final Logger Log = LoggerFactory.getLogger(SequenceManager.class);
 
-    private static final String CREATE_ID =
-            "INSERT INTO ofID (id, idType) VALUES (1, ?)";
-
-    private static final String LOAD_ID =
-            "SELECT id FROM ofID WHERE idType=?";
-
-    private static final String UPDATE_ID =
-            "UPDATE ofID SET id=? WHERE idType=? AND id=?";
-
     // Statically startup a sequence manager for each of the sequence counters.
-    private static Map<Integer, SequenceManager> managers = new ConcurrentHashMap<Integer, SequenceManager>();
+    private static final Map<Integer, SequenceManager> managers = new ConcurrentHashMap<Integer, SequenceManager>();
+    /**
+     * Provider for underlying storage
+     */
+    private final UIDProvider provider = ProviderFactory.getUIDProvider();
 
     static {
         new SequenceManager(JiveConstants.ROSTER, 5);
@@ -188,82 +181,22 @@ public class SequenceManager {
             return;
         }
 
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        boolean abortTransaction = false;
-        boolean success = false;
+        long[] ids = provider.getNextBlock(type, blockSize);
 
-        try {
-            con = DbConnectionManager.getTransactionConnection();
-            // Get the current ID from the database.
-            pstmt = con.prepareStatement(LOAD_ID);
-            pstmt.setInt(1, type);
-            rs = pstmt.executeQuery();
-
-            long currentID = 1;
-            if (rs.next()) {
-                currentID = rs.getLong(1);
-            }
-            else {
-                createNewID(con, type);
-            }
-            DbConnectionManager.fastcloseStmt(rs, pstmt);
-
-            // Increment the id to define our block.
-            long newID = currentID + blockSize;
-            // The WHERE clause includes the last value of the id. This ensures
-            // that an update will occur only if nobody else has performed an
-            // update first.
-            pstmt = con.prepareStatement(UPDATE_ID);
-            pstmt.setLong(1, newID);
-            pstmt.setInt(2, type);
-            pstmt.setLong(3, currentID);
-            // Check to see if the row was affected. If not, some other process
-            // already changed the original id that we read. Therefore, this
-            // round failed and we'll have to try again.
-            success = pstmt.executeUpdate() == 1;
-            if (success) {
-                this.currentID = currentID;
-                this.maxID = newID;
-            }
-        }
-        catch (SQLException e) {
-            Log.error(e.getMessage(), e);
-            abortTransaction = true;
-        }
-        finally {
-            DbConnectionManager.closeStatement(rs, pstmt);
-            DbConnectionManager.closeTransactionConnection(con, abortTransaction);
-        }
-
-        if (!success) {
-            Log.error("WARNING: failed to obtain next ID block due to " +
-                    "thread contention. Trying again...");
-            // Call this method again, but sleep briefly to try to avoid thread contention.
-            try {
-                Thread.sleep(75);
-            }
-            catch (InterruptedException ie) {
-                // Ignore.
-            }
-            getNextBlock(count - 1);
-        }
-    }
-
-    private void createNewID(Connection con, int type) throws SQLException {
-        Log.warn("Autocreating jiveID row for type '" + type + "'");
-
-        // create new ID row
-        PreparedStatement pstmt = null;
-
-        try {
-            pstmt = con.prepareStatement(CREATE_ID);
-            pstmt.setInt(1, type);
-            pstmt.execute();
-        }
-        finally {
-            DbConnectionManager.closeStatement(pstmt);
-        }
+		if (ids != null) {
+			currentID = ids[0];
+			maxID = ids[1];
+		} else {
+			Log.error("WARNING: failed to obtain next ID block due to "
+					+ "thread contention. Trying again...");
+			// Call this method again, but sleep briefly to try to avoid thread
+			// contention.
+			try {
+				Thread.sleep(75);
+			} catch (InterruptedException ie) {
+				// Ignore.
+			}
+			getNextBlock(count - 1);
+		}
     }
 }

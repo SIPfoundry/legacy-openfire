@@ -19,7 +19,10 @@
 
 package org.jivesoftware.openfire.reporting.stats;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.jivesoftware.openfire.SessionManager;
+import org.jivesoftware.openfire.archive.MonitoringConstants;
 import org.jivesoftware.openfire.interceptor.InterceptorManager;
 import org.jivesoftware.openfire.interceptor.PacketInterceptor;
 import org.jivesoftware.openfire.session.Session;
@@ -28,8 +31,6 @@ import org.jivesoftware.openfire.stats.StatisticsManager;
 import org.jivesoftware.openfire.stats.i18nStatistic;
 import org.picocontainer.Startable;
 import org.xmpp.packet.Packet;
-
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Creates and manages Enteprise-specific statistics, specifically: <ul>
@@ -103,7 +104,7 @@ public class StatisticsModule implements Startable {
      */
     private void addServerToServerStatistic() {
         // Register a statistic.
-        Statistic serverToServerStatistic = new i18nStatistic(SERVER_2_SERVER_SESSIONS_KEY, "monitoring",
+        Statistic serverToServerStatistic = new i18nStatistic(SERVER_2_SERVER_SESSIONS_KEY, MonitoringConstants.NAME,
                 Statistic.Type.count)
         {
             public double sample() {
@@ -126,7 +127,7 @@ public class StatisticsModule implements Startable {
      */
     private void addActiveSessionsStatistic() {
         // Register a statistic.
-        Statistic activeSessionStatistic = new i18nStatistic(SESSIONS_KEY, "monitoring", Statistic.Type.count) {
+        Statistic activeSessionStatistic = new i18nStatistic(SESSIONS_KEY, MonitoringConstants.NAME, Statistic.Type.count) {
             public double sample() {
                 return SessionManager.getInstance().getUserSessionsCount(false);
             }
@@ -143,7 +144,7 @@ public class StatisticsModule implements Startable {
      */
     private void addPacketStatistic() {
         // Register a statistic.
-        Statistic packetTrafficStatistic = new i18nStatistic(TRAFFIC_KEY, "monitoring", Statistic.Type.rate) {
+        Statistic packetTrafficStatistic = new i18nStatistic(TRAFFIC_KEY, MonitoringConstants.NAME, Statistic.Type.rate) {
             public double sample() {
                 return packetCount.getAndSet(0);
             }

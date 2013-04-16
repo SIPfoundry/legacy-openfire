@@ -33,8 +33,23 @@
 <%  // Get parameters //
     boolean cancel = request.getParameter("cancel") != null;
     boolean delete = request.getParameter("delete") != null;
+
     JID roomJID = new JID(ParamUtils.getParameter(request,"roomJID"));
-    String alternateJID = ParamUtils.getParameter(request,"alternateJID");
+    String alternateJIDString = ParamUtils.getParameter(request,"alternateJID");
+    JID alternateJID = null;
+    if (alternateJIDString != null && alternateJIDString.trim().length() > 0 ) {
+    	// OF-526: Ignore invalid alternative JIDs.
+    	try {
+    		alternateJID = new JID(alternateJIDString.trim());
+    		if (alternateJID.getNode() == null) {
+    			alternateJID = null;
+    		}
+    	} catch (IllegalArgumentException ex) {
+    		alternateJID = null;
+    	}
+    } else {
+    	alternateJID = null;
+    }
     String reason = ParamUtils.getParameter(request,"reason");
     String roomName = roomJID.getNode();
 
@@ -50,7 +65,7 @@
     // Handle a room delete:
     if (delete) {
         // Delete the room
-        if (room !=  null) {
+        if (room != null) {
             // If the room still exists then destroy it
             room.destroyRoom(alternateJID, reason);
             // Log the event

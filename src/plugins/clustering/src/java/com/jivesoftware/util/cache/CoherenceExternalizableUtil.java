@@ -286,7 +286,7 @@ public class CoherenceExternalizableUtil implements ExternalizableUtilStrategy {
     }
 
     public Serializable readSerializable(DataInput in) throws IOException {
-        return ExternalizableHelper.readSerializable(in);
+        return (Serializable) ExternalizableHelper.readSerializable(in);
     }
 
     public void writeSafeUTF(DataOutput out, String value) throws IOException {
@@ -320,7 +320,7 @@ public class CoherenceExternalizableUtil implements ExternalizableUtilStrategy {
         ExternalizableHelper.writeMap(out, map);
     }
 
-    public void writeSerializableMap(DataOutput out, Map<String, ? extends Serializable> map) throws IOException {
+    public void writeSerializableMap(DataOutput out, Map<? extends Serializable, ? extends Serializable> map) throws IOException {
         ExternalizableHelper.writeMap(out, map);
     }
     
@@ -328,7 +328,7 @@ public class CoherenceExternalizableUtil implements ExternalizableUtilStrategy {
         return ExternalizableHelper.readMap(in, map, loader);
     }
 
-    public int readSerializableMap(DataInput in, Map<String, ? extends Serializable> map, ClassLoader loader) throws IOException {
+    public int readSerializableMap(DataInput in, Map<? extends Serializable, ? extends Serializable> map, ClassLoader loader) throws IOException {
         return ExternalizableHelper.readMap(in, map, loader);
     }
     
