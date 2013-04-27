@@ -35,6 +35,7 @@ import java.util.Set;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.event.GroupEventDispatcher;
 import org.jivesoftware.openfire.provider.GroupProvider;
+import org.jivesoftware.util.PersistableMap;
 import org.jivesoftware.util.cache.CacheSizes;
 import org.jivesoftware.util.cache.Cacheable;
 import org.jivesoftware.util.cache.CannotCalculateSizeException;
@@ -60,7 +61,7 @@ public class Group implements Cacheable, Externalizable {
 
     private transient GroupProvider provider;
     private transient GroupManager groupManager;
-    private transient Map<String, String> properties;
+    private transient PersistableMap<String, String> properties;
 
     private String name;
     private String description;
@@ -116,7 +117,7 @@ public class Group implements Cacheable, Externalizable {
         this.administrators = new HashSet<JID>(administrators);
 
         this.properties = provider.loadProperties(this);
-        
+
         // Apply the given properties to the group
         for (Map.Entry<String, String> property : properties.entrySet()) {
             if (!property.getValue().equals(this.properties.get(property.getKey()))) {
@@ -222,7 +223,7 @@ public class Group implements Cacheable, Externalizable {
      *
      * @return the extended properties.
      */
-    public Map<String,String> getProperties() {
+    public PersistableMap<String,String> getProperties() {
         synchronized (this) {
             if (properties == null) {
                 properties = provider.loadProperties(this);
@@ -280,7 +281,8 @@ public class Group implements Cacheable, Externalizable {
         return false;
     }
 
-    public int getCachedSize() 
+    @Override
+    public int getCachedSize()
 	    throws CannotCalculateSizeException {
         // Approximate the size of the object in bytes by calculating the size
         // of each field.
@@ -321,8 +323,8 @@ public class Group implements Cacheable, Externalizable {
      */
     private class MemberCollection extends AbstractCollection<JID> {
 
-        private Collection<JID> users;
-        private boolean adminCollection;
+        private final Collection<JID> users;
+        private final boolean adminCollection;
 
         public MemberCollection(Collection<JID> users, boolean adminCollection) {
             this.users = users;
@@ -336,15 +338,18 @@ public class Group implements Cacheable, Externalizable {
                 Iterator<JID> iter = users.iterator();
                 JID current = null;
 
+                @Override
                 public boolean hasNext() {
                     return iter.hasNext();
                 }
 
+                @Override
                 public JID next() {
                     current = iter.next();
                     return current;
                 }
 
+                @Override
                 public void remove() {
                     if (current == null) {
                         throw new IllegalStateException();
@@ -446,6 +451,7 @@ public class Group implements Cacheable, Externalizable {
         }
     }
 
+    @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         ExternalizableUtil.getInstance().writeSafeUTF(out, name);
         ExternalizableUtil.getInstance().writeBoolean(out, description != null);
@@ -456,6 +462,7 @@ public class Group implements Cacheable, Externalizable {
         ExternalizableUtil.getInstance().writeSerializableCollection(out, administrators);
     }
 
+    @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         groupManager = GroupManager.getInstance();
         provider = groupManager.getProvider();

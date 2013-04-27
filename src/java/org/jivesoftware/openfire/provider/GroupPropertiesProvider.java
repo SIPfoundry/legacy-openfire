@@ -19,11 +19,11 @@
 package org.jivesoftware.openfire.provider;
 
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
+import org.jivesoftware.util.PersistableMap;
 
 /**
  * Provider that facilitates access to the underlying group properties storage.
@@ -40,7 +40,7 @@ public interface GroupPropertiesProvider {
 	 *            The group whose properties we want to retrieve
 	 * @return Mapping between properties and values
 	 */
-	Map<String, String> loadProperties(Group group);
+	PersistableMap<String, String> loadProperties(Group group);
 
 	/**
 	 * Add a property for a specific group

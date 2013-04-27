@@ -27,6 +27,7 @@ import org.jivesoftware.openfire.group.AbstractGroupProvider;
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
+import org.jivesoftware.util.PersistableMap;
 import org.xmpp.packet.JID;
 
 /**
@@ -283,6 +284,6 @@ public interface GroupProvider {
      * @param group The target group
      * @return The properties for the given group
      */
-    Map<String,String> loadProperties(Group group);
+    PersistableMap<String,String> loadProperties(Group group);
 
 }
