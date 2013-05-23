@@ -51,7 +51,6 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	/**
 	 * {@inheritDoc}
 	 */
-	@Override
 	public PersistableMap<String, String> loadProperties(Group group) {
 		// custom map implementation persists group property changes
 		// whenever one of the standard mutator methods are called
@@ -94,7 +93,6 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	/**
 	 * {@inheritDoc}
 	 */
-	@Override
 	public void insertProperty(String groupName, String propName,
 			String propValue) {
 		Connection con = null;
@@ -116,7 +114,6 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	/**
 	 * {@inheritDoc}
 	 */
-	@Override
 	public void updateProperty(String groupName, String propName,
 			String propValue) {
 		Connection con = null;
@@ -138,7 +135,6 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	/**
 	 * {@inheritDoc}
 	 */
-	@Override
 	public void deleteProperty(String groupName, String propName) {
 		Connection con = null;
 		PreparedStatement pstmt = null;
@@ -158,7 +154,6 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	/**
 	 * {@inheritDoc}
 	 */
-	@Override
 	public Set<String> getSharedGroupsNames() {
 		Set<String> groupNames = new HashSet<String>();
 		Connection con = null;
@@ -183,7 +178,6 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	/**
 	 * {@inheritDoc}
 	 */
-	@Override
 	public boolean setName(String oldName, String newName)
 			throws UnsupportedOperationException, GroupAlreadyExistsException {
 		boolean renamed = false;
@@ -213,7 +207,6 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 	/**
 	 * {@inheritDoc}
 	 */
-	@Override
 	public boolean deleteGroupProperties(String groupName) {
 		boolean deleted = false;
 		Connection con = null;
@@ -240,7 +233,6 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 		return deleted;
 	}
 
-	@Override
 	public Collection<String> getVisibleGroupNames(String userGroup) {
 		Set<String> groupNames = new HashSet<String>();
 		Connection con = null;
@@ -262,12 +254,10 @@ public class DefaultGroupPropertiesProvider implements GroupPropertiesProvider {
 		return groupNames;
 	}
 
-	@Override
 	public Collection<String> getPublicSharedGroupNames() {
 		return search("sharedRoster.showInRoster", "everybody");
 	}
 
-	@Override
 	public Collection<String> search(String key, String value) {
 		Set<String> groupNames = new HashSet<String>();
 		Connection con = null;

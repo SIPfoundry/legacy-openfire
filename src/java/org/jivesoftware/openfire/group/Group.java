@@ -281,7 +281,6 @@ public class Group implements Cacheable, Externalizable {
         return false;
     }
 
-    @Override
     public int getCachedSize()
 	    throws CannotCalculateSizeException {
         // Approximate the size of the object in bytes by calculating the size
@@ -338,18 +337,15 @@ public class Group implements Cacheable, Externalizable {
                 Iterator<JID> iter = users.iterator();
                 JID current = null;
 
-                @Override
                 public boolean hasNext() {
                     return iter.hasNext();
                 }
 
-                @Override
                 public JID next() {
                     current = iter.next();
                     return current;
                 }
 
-                @Override
                 public void remove() {
                     if (current == null) {
                         throw new IllegalStateException();
@@ -451,7 +447,6 @@ public class Group implements Cacheable, Externalizable {
         }
     }
 
-    @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         ExternalizableUtil.getInstance().writeSafeUTF(out, name);
         ExternalizableUtil.getInstance().writeBoolean(out, description != null);
@@ -462,7 +457,6 @@ public class Group implements Cacheable, Externalizable {
         ExternalizableUtil.getInstance().writeSerializableCollection(out, administrators);
     }
 
-    @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         groupManager = GroupManager.getInstance();
         provider = groupManager.getProvider();

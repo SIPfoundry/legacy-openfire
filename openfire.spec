@@ -70,28 +70,6 @@ rm -f $RPM_BUILD_ROOT%{homedir}/lib/*.dll
 %clean
 rm -rf $RPM_BUILD_ROOT || true
 
-%preun
-if [ "$1" == "0" ]; then
-	# This is an uninstall, instead of an upgrade.
-	/sbin/chkconfig --del openfire
-	[ -x "/etc/init.d/openfire" ] && /etc/init.d/openfire stop
-fi
-# Force a happy exit even if openfire shutdown script didn't exit cleanly.
-exit 0
-
-%post
-chown -R daemon:daemon %{homedir}
-if [ "$1" == "1" ]; then
-	# This is a fresh install, instead of an upgrade.
-	/sbin/chkconfig --add openfire
-fi
-
-# Trigger a restart.
-[ -x "/etc/init.d/openfire" ] && /etc/init.d/openfire condrestart
-
-# Force a happy exit even if openfire condrestart script didn't exit cleanly.
-exit 0
-
 %files
 %defattr(-,daemon,daemon)
 %attr(755, daemon, daemon) %dir %{homedir}

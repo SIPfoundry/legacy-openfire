@@ -96,7 +96,9 @@ public class DefaultAdminProvider implements AdminProvider {
         while (tokenizer.hasMoreTokens()) {
             String jid = tokenizer.nextToken().toLowerCase().trim();
             try {
-                adminList.add(new JID(jid));
+				adminList.add(new JID(jid, XMPPServer.getInstance()
+						.getServerInfo().getXMPPDomain(), null, true));
+				// adminList.add(new JID(jid));
             }
             catch (IllegalArgumentException e) {
                 Log.warn("Invalid JID found in admin.authorizedJIDs system property: " + jid, e);
