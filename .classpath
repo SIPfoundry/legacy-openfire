@@ -145,6 +145,6 @@
 	<classpathentry kind="lib" path="src/web/WEB-INF/lib/commons-io.jar"/>
 	<classpathentry kind="lib" path="src/web/WEB-INF/lib/dwr.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="/home/alex/ezuce/sipxecs/openfire/src/plugins/hazelcast/lib/hazelcast-2.5.jar"/>
+	<classpathentry kind="lib" path="src/plugins/hazelcast/lib/hazelcast-2.5.jar"/>
 	<classpathentry kind="output" path="work/classes"/>
 </classpath>

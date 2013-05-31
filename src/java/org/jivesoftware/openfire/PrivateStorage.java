@@ -59,7 +59,7 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
     /**
      * Pool of SAX Readers. SAXReader is not thread safe so we need to have a pool of readers.
      */
-    private BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<SAXReader>(POOL_SIZE);
+    private final BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<SAXReader>(POOL_SIZE);
 
 	/**
 	 * Provider for underlying storage
@@ -120,13 +120,14 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
      * @return the data stored under the given key or the data element.
      */
 	public Element get(String username, Element data) {
+		Element result = data;
 		if (enabled) {
 			SAXReader xmlReader = null;
 
 			try {
 				// Get a sax reader from the pool
 				xmlReader = xmlReaders.take();
-				provider.get(username, data, xmlReader);
+				result = provider.get(username, data, xmlReader);
 			} catch (Exception e) {
 				Log.error(LocaleUtils.getLocalizedString("admin.error"), e);
 			} finally {
@@ -136,7 +137,8 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
 				}
 			}
 		}
-		return data;
+
+		return result;
 	}
 
     public void userCreated(User user, Map<String,Object> params) {

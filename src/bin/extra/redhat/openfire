@@ -162,7 +162,7 @@ stop() {
 
 restart() {
 	stop
-	sleep 10 # give it a few moments to shut down
+	sleep 15 # give it a few moments to shut down
 	start
 }
 
