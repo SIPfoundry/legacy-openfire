@@ -20,21 +20,21 @@
 
 package org.jivesoftware.openfire.muc;
 
+import java.util.Collection;
+import java.util.List;
+
+import org.jivesoftware.database.JiveID;
+import org.jivesoftware.openfire.muc.spi.LocalMUCRoom;
+import org.jivesoftware.util.JiveConstants;
 import org.xmpp.component.Component;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.Message;
-import org.jivesoftware.openfire.muc.spi.LocalMUCRoom;
-import org.jivesoftware.database.JiveID;
-import org.jivesoftware.util.JiveConstants;
-
-import java.util.Collection;
-import java.util.List;
 
 /**
  * Manages groupchat conversations, chatrooms, and users. This class is designed to operate
  * independently from the rest of the Jive server infrastruture. This theoretically allows
  * deployment of the groupchat on a separate server from the main IM server.
- * 
+ *
  * @author Gaston Dombiak
  */
 @JiveID(JiveConstants.MUC_SERVICE)
@@ -44,7 +44,7 @@ public interface MultiUserChatService extends Component {
      * Returns the fully-qualifed domain name of this chat service.
      * The domain is composed by the service name and the
      * name of the XMPP server where the service is running.
-     * 
+     *
      * @return the chat server domain (service name + host name).
      */
     String getServiceDomain();
@@ -58,23 +58,23 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Returns the collection of JIDs that are system administrators of the MUC service. A sysadmin has
-     * the same permissions as a room owner. 
-     * 
+     * the same permissions as a room owner.
+     *
      * @return a list of bare JIDs.
      */
     Collection<JID> getSysadmins();
 
     /**
-     * Adds a new system administrator of the MUC service. A sysadmin has the same permissions as 
-     * a room owner. 
-     * 
+     * Adds a new system administrator of the MUC service. A sysadmin has the same permissions as
+     * a room owner.
+     *
      * @param userJID the bare JID of the new user to add as a system administrator.
      */
     void addSysadmin(JID userJID);
 
     /**
      * Removes a system administrator of the MUC service.
-     * 
+     *
      * @param userJID the bare JID of the user to remove from the list.
      */
     void removeSysadmin(JID userJID);
@@ -97,19 +97,19 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Returns the collection of JIDs that are allowed to create MUC rooms. An empty list means that
-     * anyone can create a room. 
-     * 
+     * anyone can create a room.
+     *
      * @return a list of bare JIDs.
      */
     Collection<JID> getUsersAllowedToCreate();
 
     /**
      * Adds a new user to the list of JIDs that are allowed to create MUC rooms.
-     * 
+     *
      * @param userJID the bare JID of the new user to add to list.
      */
     void addUserAllowedToCreate(JID userJID);
-    
+
     /**
      * Adds new users to the list of JIDs that are allowed to create MUC rooms.
      * @param userJIDs collection of bare JIDs if users to add to list.
@@ -118,14 +118,14 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Removes a user from list of JIDs that are allowed to create MUC rooms.
-     * 
+     *
      * @param userJID the bare JID of the user to remove from the list.
      */
     void removeUserAllowedToCreate(JID userJID);
 
     /**
      * Removes users from list of JIDs that are allowed to create MUC rooms.
-     * 
+     *
      * @param userJIDs collection of bare JIDs of users to remove from the list.
      */
     void removeUsersAllowedToCreate(Collection<JID> userJIDs);
@@ -204,7 +204,7 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Obtain the server-wide default message history settings.
-     * 
+     *
      * @return The message history strategy defaults for the server.
      */
     HistoryStrategy getHistoryStrategy();
@@ -213,7 +213,7 @@ public interface MultiUserChatService extends Component {
      * Obtains a chatroom by name. A chatroom is created for that name if none exists and the user
      * has permission. The user that asked for the chatroom will be the room's owner if the chatroom
      * was created.
-     * 
+     *
      * @param roomName Name of the room to get.
      * @param userjid The user's normal jid, not the chat nickname jid.
      * @return The chatroom for the given name.
@@ -223,23 +223,31 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Obtains a chatroom by name. If the chatroom does not exists then null will be returned.
-     * 
+     *
      * @param roomName Name of the room to get.
      * @return The chatroom for the given name or null if the room does not exists.
      */
     MUCRoom getChatRoom(String roomName);
 
     /**
-     * Retuns a list with a snapshot of all the rooms in the server (i.e. persistent or not,
-     * in memory or not).
-     *
-     * @return a list with a snapshot of all the rooms.
-     */
+	 * Forces a re-read of the room. Useful when a change occurs externally.
+	 * 
+	 * @param roomName
+	 *            Name of the room to refresh.
+	 */
+	void refreshChatRoom(String roomName);
+
+	/**
+	 * Retuns a list with a snapshot of all the rooms in the server (i.e.
+	 * persistent or not, in memory or not).
+	 * 
+	 * @return a list with a snapshot of all the rooms.
+	 */
     List<MUCRoom> getChatRooms();
 
     /**
      * Returns true if the server includes a chatroom with the requested name.
-     * 
+     *
      * @param roomName the name of the chatroom to check.
      * @return true if the server includes a chatroom with the requested name.
      */
@@ -263,7 +271,7 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Removes the room associated with the given name.
-     * 
+     *
      * @param roomName The room to remove.
      */
     void removeChatRoom(String roomName);
@@ -281,7 +289,7 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Returns the total chat time of all rooms combined.
-     * 
+     *
      * @return total chat time in milliseconds.
      */
     public long getTotalChatTime();
@@ -327,18 +335,18 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Logs that a given message was sent to a room as part of a conversation. Every message sent
-     * to the room that is allowed to be broadcasted and that was sent either from the room itself 
+     * to the room that is allowed to be broadcasted and that was sent either from the room itself
      * or from an occupant will be logged.<p>
-     * 
+     *
      * Note: For performane reasons, the logged message won't be immediately saved. Instead we keep
-     * the logged messages in memory until the logging process saves them to the database. It's 
-     * possible to configure the logging process to run every X milliseconds and also the number 
-     * of messages to log on each execution. 
+     * the logged messages in memory until the logging process saves them to the database. It's
+     * possible to configure the logging process to run every X milliseconds and also the number
+     * of messages to log on each execution.
      * @see org.jivesoftware.openfire.muc.spi.MultiUserChatServiceImpl#initialize(org.jivesoftware.openfire.XMPPServer)
-     * 
+     *
      * @param room the room that received the message.
      * @param message the message to log as part of the conversation in the room.
-     * @param sender the real XMPPAddress of the sender (e.g. john@example.org). 
+     * @param sender the real XMPPAddress of the sender (e.g. john@example.org).
      */
     void logConversation(MUCRoom room, Message message, JID sender);
 
@@ -352,7 +360,7 @@ public interface MultiUserChatService extends Component {
 
     /**
      * Enables or disables the MUC service. When disabled the MUC service will disappear from
-     * the disco#items list. Moreover, service discovery features will be disabled. 
+     * the disco#items list. Moreover, service discovery features will be disabled.
      *
      * @param enabled true if the service is enabled.
      * @param persistent true if the new setting will persist across restarts.

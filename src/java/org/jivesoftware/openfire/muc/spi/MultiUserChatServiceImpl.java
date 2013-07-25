@@ -135,7 +135,7 @@ public class MultiUserChatServiceImpl implements MultiUserChatService,
     /**
      * chatrooms managed by this manager, table: key room name (String); value ChatRoom
      */
-    private Map<String, LocalMUCRoom> rooms = new ConcurrentHashMap<String, LocalMUCRoom>();
+    private final Map<String, LocalMUCRoom> rooms = new ConcurrentHashMap<String, LocalMUCRoom>();
 
     /**
      * Chat users managed by this manager. This includes only users connected to this JVM.
@@ -144,8 +144,8 @@ public class MultiUserChatServiceImpl implements MultiUserChatService,
      *
      * table: key user jid (XMPPAddress); value ChatUser
      */
-    private Map<JID, LocalMUCUser> users = new ConcurrentHashMap<JID, LocalMUCUser>();
-    private HistoryStrategy historyStrategy;
+    private final Map<JID, LocalMUCUser> users = new ConcurrentHashMap<JID, LocalMUCUser>();
+    private final HistoryStrategy historyStrategy;
 
     private RoutingTable routingTable = null;
     /**
@@ -171,7 +171,7 @@ public class MultiUserChatServiceImpl implements MultiUserChatService,
      * Timer to monitor chatroom participants. If they've been idle for too long, probe for
      * presence.
      */
-    private Timer timer = new Timer("MUC cleanup");
+    private final Timer timer = new Timer("MUC cleanup");
 
     /**
      * Flag that indicates if the service should provide information about locked rooms when
@@ -203,7 +203,7 @@ public class MultiUserChatServiceImpl implements MultiUserChatService,
     /**
      * Queue that holds the messages to log for the rooms that need to log their conversations.
      */
-    private Queue<ConversationLogEntry> logQueue = new LinkedBlockingQueue<ConversationLogEntry>(100000);
+    private final Queue<ConversationLogEntry> logQueue = new LinkedBlockingQueue<ConversationLogEntry>(100000);
 
     /**
      * Max number of hours that a persistent room may be empty before the service removes the
@@ -225,12 +225,12 @@ public class MultiUserChatServiceImpl implements MultiUserChatService,
      * Total number of received messages in all rooms since the last reset. The counter
      * is reset each time the Statistic makes a sampling.
      */
-    private AtomicInteger inMessages = new AtomicInteger(0);
+    private final AtomicInteger inMessages = new AtomicInteger(0);
     /**
      * Total number of broadcasted messages in all rooms since the last reset. The counter
      * is reset each time the Statistic makes a sampling.
      */
-    private AtomicLong outMessages = new AtomicLong(0);
+    private final AtomicLong outMessages = new AtomicLong(0);
 
     /**
      * Flag that indicates if MUC service is enabled.
@@ -250,12 +250,12 @@ public class MultiUserChatServiceImpl implements MultiUserChatService,
     /**
      * Additional features to be added to the disco response for the service.
      */
-    private List<String> extraDiscoFeatures = new ArrayList<String>();
+    private final List<String> extraDiscoFeatures = new ArrayList<String>();
 
     /**
      * Additional identities to be added to the disco response for the service.
      */
-    private List<Element> extraDiscoIdentities = new ArrayList<Element>();
+    private final List<Element> extraDiscoIdentities = new ArrayList<Element>();
 
     /**
      * Provider for underlying storage
@@ -609,6 +609,11 @@ public class MultiUserChatServiceImpl implements MultiUserChatService,
         }
         return room;
     }
+
+	public void refreshChatRoom(String roomName) {
+		rooms.remove(roomName);
+		getChatRoom(roomName);
+	}
 
     public LocalMUCRoom getLocalChatRoom(String roomName) {
         return rooms.get(roomName);
