@@ -748,7 +748,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
         }
         else if (!oldPresence.isAvailable() && this.presence.isAvailable()) {
             // The client is available
-            sessionManager.sessionAvailable(this);
+			sessionManager.sessionAvailable(this, presence);
             wasAvailable = true;
             // Notify listeners that the session is now available
             PresenceEventDispatcher.availableSession(this, presence);
@@ -829,12 +829,10 @@ public class LocalClientSession extends LocalSession implements ClientSession {
             // If a privacy list is active then make sure that the packet is not blocked
             return !list.shouldBlockPacket(packet);
         }
-        else {
-            list = getDefaultList();
-            // There is no active list so check if there exists a default list and make
-            // sure that the packet is not blocked
-            return list == null || !list.shouldBlockPacket(packet);
-        }
+		list = getDefaultList();
+		// There is no active list so check if there exists a default list and
+		// make sure that the packet is not blocked
+		return list == null || !list.shouldBlockPacket(packet);
     }
 
     @Override

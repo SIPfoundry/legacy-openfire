@@ -100,7 +100,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
      * Counter of user connections. A connection is counted just after it was created and not
      * after the user became available. This counter only considers sessions local to this JVM.
      * That means that when running inside of a cluster you will need to add up this counter
-     * for each cluster node. 
+     * for each cluster node.
      */
     private final AtomicInteger connectionsCounter = new AtomicInteger(0);
 
@@ -149,21 +149,21 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
      * This same information is stored in {@link LocalIncomingServerSession} but the
      * reason for this duplication is that when running in a cluster other nodes
      * will have access to this clustered cache even in the case of this node going
-     * down. 
+     * down.
      */
     private Cache<String, Set<String>> validatedDomainsCache;
 
-    private ClientSessionListener clientSessionListener = new ClientSessionListener();
-    private ComponentSessionListener componentSessionListener = new ComponentSessionListener();
-    private IncomingServerSessionListener incomingServerListener = new IncomingServerSessionListener();
-    private OutgoingServerSessionListener outgoingServerListener = new OutgoingServerSessionListener();
-    private ConnectionMultiplexerSessionListener multiplexerSessionListener = new ConnectionMultiplexerSessionListener();
+    private final ClientSessionListener clientSessionListener = new ClientSessionListener();
+    private final ComponentSessionListener componentSessionListener = new ComponentSessionListener();
+    private final IncomingServerSessionListener incomingServerListener = new IncomingServerSessionListener();
+    private final OutgoingServerSessionListener outgoingServerListener = new OutgoingServerSessionListener();
+    private final ConnectionMultiplexerSessionListener multiplexerSessionListener = new ConnectionMultiplexerSessionListener();
 
     /**
      * Local session manager responsible for keeping sessions connected to this JVM that are not
-     * present in the routing table. 
+     * present in the routing table.
      */
-    private LocalSessionManager localSessionManager;
+    private final LocalSessionManager localSessionManager;
     /**
      * <p>Session manager must maintain the routing table as sessions are added and
      * removed.</p>
@@ -275,7 +275,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
      * Creates a new <tt>ConnectionMultiplexerSession</tt>.
      *
      * @param conn the connection to create the session from.
-     * @param address the JID (may include a resource) of the connection manager's session. 
+     * @param address the JID (may include a resource) of the connection manager's session.
      * @return a newly created session.
      */
     public LocalConnectionMultiplexerSession createMultiplexerSession(Connection conn, JID address) {
@@ -564,14 +564,19 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
     }
 
     /**
-     * Notification message sent when a client sent an available presence for the session. Making
-     * the session available means that the session is now eligible for receiving messages from
-     * other clients. Sessions whose presence is not available may only receive packets (IQ packets)
-     * from the server. Therefore, an unavailable session remains invisible to other clients.
-     *
-     * @param session the session that receieved an available presence.
-     */
-    public void sessionAvailable(LocalClientSession session) {
+	 * Notification message sent when a client sent an available presence for
+	 * the session. Making the session available means that the session is now
+	 * eligible for receiving messages from other clients. Sessions whose
+	 * presence is not available may only receive packets (IQ packets) from the
+	 * server. Therefore, an unavailable session remains invisible to other
+	 * clients.
+	 *
+	 * @param session
+	 *            the session that receieved an available presence.
+	 * @param presence
+	 *            The presence for the session
+	 */
+	public void sessionAvailable(LocalClientSession session, Presence presence) {
         if (session.getAuthToken().isAnonymous()) {
             // Anonymous session always have resources so we only need to add one route. That is
             // the route to the anonymous session
@@ -583,12 +588,13 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
             routingTable.addClientRoute(session.getAddress(), session);
             // Broadcast presence between the user's resources
             broadcastPresenceOfOtherResource(session);
+			broadcastPresenceToOtherResources(session.getAddress(), presence);
         }
     }
 
     /**
      * Sends the presences of other connected resources to the resource that just connected.
-     * 
+     *
      * @param session the newly created session.
      */
     private void broadcastPresenceOfOtherResource(LocalClientSession session) {
@@ -596,7 +602,9 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
         // Get list of sessions of the same user
         JID searchJID = new JID(session.getAddress().getNode(), session.getAddress().getDomain(), null);
         List<JID> addresses = routingTable.getRoutes(searchJID, null);
+		Log.warn("broadcastPresenceOfOtherResource");
         for (JID address : addresses) {
+			Log.warn("\taddress: " + address);
             if (address.equals(session.getAddress())) {
                 continue;
             }
@@ -605,6 +613,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
             ClientSession userSession = routingTable.getClientRoute(address);
             presence = userSession.getPresence().createCopy();
             presence.setTo(session.getAddress());
+			Log.warn("\tpresence: " + presence);
             session.process(presence);
         }
     }
@@ -621,9 +630,6 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
         JID searchJID = new JID(originatingResource.getNode(), originatingResource.getDomain(), null);
         List<JID> addresses = routingTable.getRoutes(searchJID, null);
         for (JID address : addresses) {
-            if (address.equals(originatingResource)) {
-                continue;
-            }
             // Send the presence of the session whose presence has changed to
             // this other user's session
             presence.setTo(address);
@@ -819,26 +825,26 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
         if (streamIDs == null) {
             return Collections.emptyList();
         }
-        else {
-            // Collect the sessions associated to the found stream IDs
-            List<IncomingServerSession> sessions = new ArrayList<IncomingServerSession>();
-            for (String streamID : streamIDs) {
-                // Search in local hosted sessions
-                IncomingServerSession session = localSessionManager.getIncomingServerSession(streamID);
-                RemoteSessionLocator locator = server.getRemoteSessionLocator();
-                if (session == null && locator != null) {
-                    // Get the node hosting this session
-                    byte[] nodeID = incomingServerSessionsCache.get(streamID);
-                    if (nodeID != null) {
-                        session = locator.getIncomingServerSession(nodeID, streamID);
-                    }
-                }
-                if (session != null) {
-                    sessions.add(session);
-                }
-            }
-            return sessions;
-        }
+		// Collect the sessions associated to the found stream IDs
+		List<IncomingServerSession> sessions = new ArrayList<IncomingServerSession>();
+		for (String streamID : streamIDs) {
+			// Search in local hosted sessions
+			IncomingServerSession session = localSessionManager
+					.getIncomingServerSession(streamID);
+			RemoteSessionLocator locator = server.getRemoteSessionLocator();
+			if (session == null && locator != null) {
+				// Get the node hosting this session
+				byte[] nodeID = incomingServerSessionsCache.get(streamID);
+				if (nodeID != null) {
+					session = locator
+							.getIncomingServerSession(nodeID, streamID);
+				}
+			}
+			if (session != null) {
+				sessions.add(session);
+			}
+		}
+		return sessions;
     }
 
     /**
@@ -1261,13 +1267,13 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
     }
 
     @Override
-	public void initialize(XMPPServer server) {
-        super.initialize(server);
-        this.server = server;
-        router = server.getPacketRouter();
-        userManager = server.getUserManager();
-        routingTable = server.getRoutingTable();
-        serverName = server.getServerInfo().getXMPPDomain();
+	public void initialize(XMPPServer xmppServer) {
+        super.initialize(xmppServer);
+        this.server = xmppServer;
+        router = xmppServer.getPacketRouter();
+		userManager = XMPPServer.getUserManager();
+        routingTable = xmppServer.getRoutingTable();
+        serverName = xmppServer.getServerInfo().getXMPPDomain();
         serverAddress = new JID(serverName);
 
         if (JiveGlobals.getBooleanProperty("xmpp.audit.active")) {
@@ -1378,7 +1384,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
      * @return true if remote servers are allowed to have more than one connection to this
      *         server.
      */
-    public boolean isMultipleServerConnectionsAllowed() {
+	public static boolean isMultipleServerConnectionsAllowed() {
         return JiveGlobals.getBooleanProperty("xmpp.server.session.allowmultiple", true);
     }
 
@@ -1393,7 +1399,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
      * @param allowed true if remote servers are allowed to have more than one connection to this
      *        server.
      */
-    public void setMultipleServerConnectionsAllowed(boolean allowed) {
+	public static void setMultipleServerConnectionsAllowed(boolean allowed) {
         JiveGlobals.setProperty("xmpp.server.session.allowmultiple", Boolean.toString(allowed));
         if (allowed && JiveGlobals.getIntProperty("xmpp.server.session.idle", 10 * 60 * 1000) <= 0)
         {
@@ -1412,7 +1418,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
      *
      * @param timeout the number of milliseconds to elapse between clearings.
      */
-    public void setServerSessionTimeout(int timeout) {
+	public static void setServerSessionTimeout(int timeout) {
         if (getServerSessionTimeout() == timeout) {
             return;
         }
@@ -1425,11 +1431,11 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
      *
      * @return the number of milliseconds to elapse between clearing of idle server sessions.
      */
-    public int getServerSessionTimeout() {
+	public static int getServerSessionTimeout() {
         return JiveGlobals.getIntProperty("xmpp.server.session.timeout", 5 * 60 * 1000);
     }
 
-    public void setServerSessionIdleTime(int idleTime) {
+	public static void setServerSessionIdleTime(int idleTime) {
         if (getServerSessionIdleTime() == idleTime) {
             return;
         }
@@ -1445,7 +1451,7 @@ public class SessionManager extends BasicModule implements ClusterEventListener 
         }
     }
 
-    public int getServerSessionIdleTime() {
+	public static int getServerSessionIdleTime() {
         return JiveGlobals.getIntProperty("xmpp.server.session.idle", 10 * 60 * 1000);
     }
 
