@@ -39,7 +39,7 @@
 	<classpathentry kind="lib" path="build/lib/dist/mail.jar"/>
 	<classpathentry kind="lib" path="build/lib/dist/mysql.jar"/>
 	<classpathentry kind="lib" path="build/lib/dist/postgres.jar"/>
-	<classpathentry kind="lib" path="build/lib/dist/servlet.jar"/>
+	<classpathentry exported="true" kind="lib" path="build/lib/dist/servlet.jar"/>
 	<classpathentry kind="lib" path="build/lib/dist/slf4j-log4j12.jar"/>
 	<classpathentry kind="lib" path="build/lib/hamcrest-api.jar"/>
 	<classpathentry kind="lib" path="build/lib/hamcrest-library.jar"/>
@@ -52,11 +52,11 @@
 	<classpathentry kind="lib" path="build/lib/junit.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/commons-codec.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/commons-httpclient.jar"/>
-	<classpathentry kind="lib" path="build/lib/merge/commons-lang.jar"/>
+	<classpathentry exported="true" kind="lib" path="build/lib/merge/commons-lang.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/commons-logging.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/concurrentlinkedhashmap-lru-1.0_jdk5.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/dbutil.jar"/>
-	<classpathentry kind="lib" path="build/lib/merge/dom4j.jar"/>
+	<classpathentry exported="true" kind="lib" path="build/lib/merge/dom4j.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/jaxen.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/jdom.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/jetty-continuation.jar"/>
@@ -82,7 +82,7 @@
 	<classpathentry kind="lib" path="build/lib/merge/rome.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/shaj.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/sitemesh.jar"/>
-	<classpathentry kind="lib" path="build/lib/merge/slf4j-api.jar"/>
+	<classpathentry exported="true" kind="lib" path="build/lib/merge/slf4j-api.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/standard.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/stringprep.jar"/>
 	<classpathentry exported="true" kind="lib" path="build/lib/merge/tinder.jar"/>
