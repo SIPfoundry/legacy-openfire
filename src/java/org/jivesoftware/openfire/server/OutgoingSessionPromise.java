@@ -51,38 +51,38 @@ import org.xmpp.packet.Presence;
 
 /**
  * An OutgoingSessionPromise provides an asynchronic way for sending packets to remote servers.
- * When looking for a route to a remote server that does not have an existing connection, a session
- * promise is returned.
+ * When looking for a route to a remote server that does not have an existing connection, a
+ * session promise is returned.
  *
  * This class will queue packets and process them in another thread. The processing thread will
- * use a pool of thread that will actually do the hard work. The threads in the pool will try
- * to connect to remote servers and deliver the packets. If an error occurred while establishing
- * the connection or sending the packet an error will be returned to the sender of the packet.
+ * use a pool of thread that will actually do the hard work. The threads in the pool will try to
+ * connect to remote servers and deliver the packets. If an error occurred while establishing the
+ * connection or sending the packet an error will be returned to the sender of the packet.
  *
  * @author Gaston Dombiak
  */
 public class OutgoingSessionPromise implements RoutableChannelHandler {
 
-	private static final Logger Log = LoggerFactory.getLogger(OutgoingSessionPromise.class);
+    private static final Logger Log = LoggerFactory.getLogger(OutgoingSessionPromise.class);
 
     private static OutgoingSessionPromise instance = new OutgoingSessionPromise();
 
     /**
      * Queue that holds the packets pending to be sent to remote servers.
      */
-    private BlockingQueue<Packet> packets = new LinkedBlockingQueue<Packet>(10000);
+    private final BlockingQueue<Packet> packets = new LinkedBlockingQueue<Packet>(10000);
 
     /**
-     * Pool of threads that will create outgoing sessions to remote servers and send
-     * the queued packets.
+     * Pool of threads that will create outgoing sessions to remote servers and send the queued
+     * packets.
      */
     private ThreadPoolExecutor threadPool;
 
-    private Map<String, PacketsProcessor> packetsProcessors = new HashMap<String, PacketsProcessor>();
+    private final Map<String, PacketsProcessor> packetsProcessors = new HashMap<String, PacketsProcessor>();
 
     /**
-     * Cache (unlimited, never expire) that holds outgoing sessions to remote servers from this server.
-     * Key: server domain, Value: nodeID
+     * Cache (unlimited, never expire) that holds outgoing sessions to remote servers from this
+     * server. Key: server domain, Value: nodeID
      */
     private Cache<String, byte[]> serversCache;
     /**
@@ -106,10 +106,8 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
             // Ensure that the max number of threads in the pool is at least 10
             maxThreads = 10;
         }
-        threadPool =
-                new ThreadPoolExecutor(maxThreads/4, maxThreads, 60, TimeUnit.SECONDS,
-                        new LinkedBlockingQueue<Runnable>(queueSize),
-                        new ThreadPoolExecutor.CallerRunsPolicy());
+        threadPool = new ThreadPoolExecutor(maxThreads / 4, maxThreads, 60, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<Runnable>(queueSize), new ThreadPoolExecutor.CallerRunsPolicy());
 
         // Start the thread that will consume the queued packets. Each pending packet will
         // be actually processed by a thread of the pool (when available). If an error occurs
@@ -129,8 +127,7 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
                             synchronized (domain.intern()) {
                                 packetsProcessor = packetsProcessors.get(domain);
                                 if (packetsProcessor == null) {
-                                    packetsProcessor =
-                                            new PacketsProcessor(OutgoingSessionPromise.this, domain);
+                                    packetsProcessor = new PacketsProcessor(OutgoingSessionPromise.this, domain);
                                     packetsProcessors.put(domain, packetsProcessor);
                                     newProcessor = true;
                                 }
@@ -141,16 +138,13 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
                                 // Process the packet in another thread
                                 threadPool.execute(packetsProcessor);
                             }
-                        }
-                        else {
+                        } else {
                             // No threads are available so take a nap :)
                             Thread.sleep(200);
                         }
-                    }
-                    catch (InterruptedException e) {
+                    } catch (InterruptedException e) {
                         // Do nothing
-                    }
-                    catch (Exception e) {
+                    } catch (Exception e) {
                         Log.error(e.getMessage(), e);
                     }
                 }
@@ -166,8 +160,8 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
     }
 
     /**
-     * Shuts down the thread that consumes the queued packets and also stops the pool
-     * of threads that actually send the packets to the remote servers.
+     * Shuts down the thread that consumes the queued packets and also stops the pool of threads
+     * that actually send the packets to the remote servers.
      */
     public void shutdown() {
         threadPool.shutdown();
@@ -185,11 +179,10 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
     }
 
     private void processorDone(PacketsProcessor packetsProcessor) {
-        synchronized(packetsProcessor.getDomain().intern()) {
+        synchronized (packetsProcessor.getDomain().intern()) {
             if (packetsProcessor.isDone()) {
                 packetsProcessors.remove(packetsProcessor.getDomain());
-            }
-            else {
+            } else {
                 threadPool.execute(packetsProcessor);
             }
         }
@@ -197,16 +190,16 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
 
     private class PacketsProcessor implements Runnable {
 
-        private OutgoingSessionPromise promise;
-        private String domain;
-        private Queue<Packet> packetQueue = new ConcurrentLinkedQueue<Packet>();
+        private final OutgoingSessionPromise promise;
+        private final String domain;
+        private final Queue<Packet> packetQueue = new ConcurrentLinkedQueue<Packet>();
         /**
-         * Keep track of the last time s2s failed. Once a packet failed to be sent to a
-         * remote server this stamp will be used so that for the next 5 seconds future packets
-         * for the same domain will automatically fail. After 5 seconds a new attempt to
-         * establish a s2s connection and deliver pendings packets will be performed.
-         * This optimization is good when the server is receiving many packets per second for the
-         * same domain. This will help reduce high CPU consumption.
+         * Keep track of the last time s2s failed. Once a packet failed to be sent to a remote
+         * server this stamp will be used so that for the next 5 seconds future packets for the
+         * same domain will automatically fail. After 5 seconds a new attempt to establish a s2s
+         * connection and deliver pendings packets will be performed. This optimization is good
+         * when the server is receiving many packets per second for the same domain. This will
+         * help reduce high CPU consumption.
          */
         private long failureTimestamp = -1;
 
@@ -218,12 +211,17 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
         public void run() {
             while (!isDone()) {
                 Packet packet = packetQueue.poll();
+                Log.debug("Sending packet to remote server: " + packet);
+                System.out.println("Sending packet to remote server: " + packet);
                 if (packet != null) {
                     // Check if s2s already failed
                     if (failureTimestamp > 0) {
                         // Check if enough time has passed to attempt a new s2s
                         if (System.currentTimeMillis() - failureTimestamp < 5000) {
                             returnErrorToSender(packet);
+                            System.out
+                                    .println("OutgoingSessionPromise: Error sending packet to remote server (fast discard): "
+                                            + packet);
                             Log.debug(
                                     "OutgoingSessionPromise: Error sending packet to remote server (fast discard): " +
                                             packet);
@@ -239,6 +237,9 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
                     }
                     catch (Exception e) {
                         returnErrorToSender(packet);
+                        System.out.println("OutgoingSessionPromise: Error sending packet to remote server: " + packet);
+                        System.out.println(String.format("Caught exception [%s]. Reason [%s]", e.getClass()
+                                .getName(), e.getMessage()));
                         Log.debug(
                                 "OutgoingSessionPromise: Error sending packet to remote server: " + packet,
                                 e);
@@ -251,15 +252,16 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
         }
 
         private void sendPacket(Packet packet) throws Exception {
-            // Create a connection to the remote server from the domain where the packet has been sent
+            // Create a connection to the remote server from the domain where the packet has been
+            // sent
             boolean created;
             // Make sure that only one cluster node is creating the outgoing connection
             // TODO: Evaluate why removing the oss part causes nasty s2s and lockup issues.
-            Lock lock = CacheFactory.getLock(domain+"oss", serversCache);
+            Lock lock = CacheFactory.getLock(domain + "oss", serversCache);
             try {
                 lock.lock();
-                created = LocalOutgoingServerSession
-                        .authenticateDomain(packet.getFrom().getDomain(), packet.getTo().getDomain());
+                created = LocalOutgoingServerSession.authenticateDomain(packet.getFrom().getDomain(), packet.getTo()
+                        .getDomain());
             } finally {
                 lock.unlock();
             }
@@ -267,10 +269,10 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
                 if (!routingTable.hasServerRoute(packet.getTo())) {
                     throw new Exception("Route created but not found!!!");
                 }
-                // A connection to the remote server was created so get the route and send the packet
+                // A connection to the remote server was created so get the route and send the
+                // packet
                 routingTable.routePacket(packet.getTo(), packet, false);
-            }
-            else {
+            } else {
                 throw new Exception("Failed to create connection to remote server");
             }
         }
@@ -279,10 +281,12 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
             XMPPServer server = XMPPServer.getInstance();
             JID from = packet.getFrom();
             JID to = packet.getTo();
-            if (!server.isLocal(from) && !XMPPServer.getInstance().matchesComponent(from) &&
-                    !server.isLocal(to) && !XMPPServer.getInstance().matchesComponent(to)) {
-                // Do nothing since the sender and receiver of the packet that failed to reach a remote
-                // server are not local users. This prevents endless loops if the FROM or TO address
+            if (!server.isLocal(from) && !XMPPServer.getInstance().matchesComponent(from) && !server.isLocal(to)
+                    && !XMPPServer.getInstance().matchesComponent(to)) {
+                // Do nothing since the sender and receiver of the packet that failed to reach a
+                // remote
+                // server are not local users. This prevents endless loops if the FROM or TO
+                // address
                 // are non-existen addresses
                 return;
             }
@@ -297,38 +301,35 @@ public class OutgoingSessionPromise implements RoutableChannelHandler {
                     reply.setChildElement(((IQ) packet).getChildElement().createCopy());
                     reply.setError(PacketError.Condition.remote_server_not_found);
                     routingTable.routePacket(reply.getTo(), reply, true);
-                }
-                else if (packet instanceof Presence) {
-                	// workaround for OF-23. "undo" the 'setFrom' to a bare JID 
-                	// by sending the error to all available resources.
-                	final List<JID> routes = new ArrayList<JID>(); 
-                	if (from.getResource() == null || from.getResource().trim().length() == 0) {
-                    	routes.addAll(routingTable.getRoutes(from, null));
+                } else if (packet instanceof Presence) {
+                    // workaround for OF-23. "undo" the 'setFrom' to a bare JID
+                    // by sending the error to all available resources.
+                    final List<JID> routes = new ArrayList<JID>();
+                    if (from.getResource() == null || from.getResource().trim().length() == 0) {
+                        routes.addAll(routingTable.getRoutes(from, null));
                     } else {
-                    	routes.add(from);
+                        routes.add(from);
                     }
-                	
-                	for (JID route : routes) {
-	                    Presence reply = new Presence();
-	                    reply.setID(packet.getID());
-	                    reply.setTo(route);
-	                    reply.setFrom(to);
-	                    reply.setError(PacketError.Condition.remote_server_not_found);
-	                    routingTable.routePacket(reply.getTo(), reply, true);
-                	}
-                }
-                else if (packet instanceof Message) {
+
+                    for (JID route : routes) {
+                        Presence reply = new Presence();
+                        reply.setID(packet.getID());
+                        reply.setTo(route);
+                        reply.setFrom(to);
+                        reply.setError(PacketError.Condition.remote_server_not_found);
+                        routingTable.routePacket(reply.getTo(), reply, true);
+                    }
+                } else if (packet instanceof Message) {
                     Message reply = new Message();
                     reply.setID(packet.getID());
                     reply.setTo(from);
                     reply.setFrom(to);
-                    reply.setType(((Message)packet).getType());
-                    reply.setThread(((Message)packet).getThread());
+                    reply.setType(((Message) packet).getType());
+                    reply.setThread(((Message) packet).getThread());
                     reply.setError(PacketError.Condition.remote_server_not_found);
                     routingTable.routePacket(reply.getTo(), reply, true);
                 }
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 Log.warn("Error returning error to sender. Original packet: " + packet, e);
             }
         }
