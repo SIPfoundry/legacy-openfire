@@ -109,17 +109,17 @@ public class LocalMUCRoom implements MUCRoom {
     /**
      * The occupants of the room accessible by the occupants nickname.
      */
-    private Map<String,MUCRole> occupants = new ConcurrentHashMap<String, MUCRole>();
+    private final Map<String,MUCRole> occupants = new ConcurrentHashMap<String, MUCRole>();
 
     /**
      * The occupants of the room accessible by the occupants bare JID.
      */
-    private ConcurrentMap<JID, List<MUCRole>> occupantsByBareJID = new ConcurrentHashMap<JID, List<MUCRole>>();
+    private final ConcurrentMap<JID, List<MUCRole>> occupantsByBareJID = new ConcurrentHashMap<JID, List<MUCRole>>();
 
     /**
      * The occupants of the room accessible by the occupants full JID.
      */
-    private ConcurrentMap<JID, MUCRole> occupantsByFullJID = new ConcurrentHashMap<JID, MUCRole>();
+    private final ConcurrentMap<JID, MUCRole> occupantsByFullJID = new ConcurrentHashMap<JID, MUCRole>();
 
     /**
      * The name of the room.
@@ -134,7 +134,7 @@ public class LocalMUCRoom implements MUCRoom {
     /**
      * The role of the room itself.
      */
-    private MUCRole role = new RoomRole(this);
+    private final MUCRole role = new RoomRole(this);
 
     /**
      * The router used to send packets for the room.
@@ -572,6 +572,9 @@ public class LocalMUCRoom implements MUCRoom {
             // If another user attempts to join the room with a nickname reserved by the first user
             // raise a ConflictException
             if (members.containsValue(nickname)) {
+                System.out.println(nickname);
+                System.out.println(bareJID);
+                System.out.println(members.get(bareJID));
                 if (!nickname.equals(members.get(bareJID))) {
                     throw new ConflictException();
                 }
@@ -1152,7 +1155,7 @@ public class LocalMUCRoom implements MUCRoom {
      */
     private class RoomRole implements MUCRole {
 
-        private MUCRoom room;
+        private final MUCRoom room;
 
         private RoomRole(MUCRoom room) {
             this.room = room;

@@ -85,7 +85,7 @@
 	<classpathentry kind="lib" path="build/lib/merge/slf4j-api.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/standard.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/stringprep.jar"/>
-	<classpathentry kind="lib" path="build/lib/merge/tinder.jar"/>
+	<classpathentry exported="true" kind="lib" path="build/lib/merge/tinder.jar"/>
 	<classpathentry kind="lib" path="build/lib/merge/xpp3.jar"/>
 	<classpathentry kind="lib" path="build/lib/objenesis.jar"/>
 	<classpathentry kind="lib" path="build/lib/pack200task.jar"/>

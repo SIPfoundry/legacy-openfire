@@ -66,7 +66,7 @@ import org.xmpp.packet.Presence;
  * This room occupant is being hosted by this JVM. When the room occupant
  * is hosted by another cluster node then an instance of {@link RemoteMUCRole}
  * will be used instead.
- * 
+ *
  * @author Gaston Dombiak
  */
 public class LocalMUCUser implements MUCUser {
@@ -74,16 +74,16 @@ public class LocalMUCUser implements MUCUser {
 	private static final Logger Log = LoggerFactory.getLogger(LocalMUCUser.class);
 
     /** The chat server this user belongs to. */
-    private MultiUserChatService server;
+    private final MultiUserChatService server;
 
     /** Real system XMPPAddress for the user. */
-    private JID realjid;
+    private final JID realjid;
 
     /** Table: key roomName.toLowerCase(); value LocalMUCRole. */
-    private Map<String, LocalMUCRole> roles = new ConcurrentHashMap<String, LocalMUCRole>();
+    private final Map<String, LocalMUCRole> roles = new ConcurrentHashMap<String, LocalMUCRole>();
 
     /** Deliver packets to users. */
-    private PacketRouter router;
+    private final PacketRouter router;
 
     /**
      * Time of last packet sent.
@@ -92,12 +92,12 @@ public class LocalMUCUser implements MUCUser {
 
     /**
      * Create a new chat user.
-     * 
+     *
      * @param chatservice the service the user belongs to.
      * @param packetRouter the router for sending packets from this user.
      * @param jid the real address of the user
      */
-    LocalMUCUser(MultiUserChatService chatservice, PacketRouter packetRouter, JID jid) {
+    public LocalMUCUser(MultiUserChatService chatservice, PacketRouter packetRouter, JID jid) {
         this.realjid = jid;
         this.router = packetRouter;
         this.server = chatservice;
@@ -154,7 +154,7 @@ public class LocalMUCUser implements MUCUser {
     /**
      * Generate a conflict packet to indicate that the nickname being requested/used is already in
      * use by another user.
-     * 
+     *
      * @param packet the packet to be bounced.
      * @param error the reason why the operation failed.
      */
@@ -201,7 +201,7 @@ public class LocalMUCUser implements MUCUser {
     /**
      * This method does all packet routing in the chat server. Packet routing is actually very
      * simple:
-     * 
+     *
      * <ul>
      * <li>Discover the room the user is talking to (server packets are dropped)</li>
      * <li>If the room is not registered and this is a presence "available" packet, try to join the
@@ -209,11 +209,11 @@ public class LocalMUCUser implements MUCUser {
      * <li>If the room is registered, and presence "unavailable" leave the room</li>
      * <li>Otherwise, rewrite the sender address and send to the room.</li>
      * </ul>
-     * 
+     *
      * @param packet The packet to route.
      */
     public void process(Message packet) {
-        // Ignore messages of type ERROR sent to a room 
+        // Ignore messages of type ERROR sent to a room
         if (Message.Type.error == packet.getType()) {
             return;
         }
@@ -312,7 +312,7 @@ public class LocalMUCUser implements MUCUser {
                                     List<Element> extensions = new ArrayList<Element>(packet
                                             .getElement().elements());
                                     extensions.remove(userInfo);
-                                    
+
                                     // Send invitations to invitees
                                     @SuppressWarnings("unchecked")
 									Iterator<Element> it = userInfo.elementIterator("invite");
