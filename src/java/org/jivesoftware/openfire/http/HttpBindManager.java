@@ -69,35 +69,35 @@ public final class HttpBindManager {
     public static final String HTTP_BIND_SECURE_PORT = "httpbind.port.secure";
 
     public static final int HTTP_BIND_SECURE_PORT_DEFAULT = 7443;
-    
+
     public static final String HTTP_BIND_THREADS = "httpbind.client.processing.threads";
 
     public static final int HTTP_BIND_THREADS_DEFAULT = 254;
-    
+
 	private static final String HTTP_BIND_FORWARDED = "httpbind.forwarded.enabled";
-    
+
 	private static final String HTTP_BIND_FORWARDED_FOR = "httpbind.forwarded.for.header";
-    
+
 	private static final String HTTP_BIND_FORWARDED_SERVER = "httpbind.forwarded.server.header";
-    
+
 	private static final String HTTP_BIND_FORWARDED_HOST = "httpbind.forwarded.host.header";
-	
+
 	private static final String HTTP_BIND_FORWARDED_HOST_NAME = "httpbind.forwarded.host.name";
-    
+
     // http binding CORS default properties
-    
+
     public static final String HTTP_BIND_CORS_ENABLED = "httpbind.CORS.enabled";
-    
+
     public static final boolean HTTP_BIND_CORS_ENABLED_DEFAULT = true;
-    
+
     public static final String HTTP_BIND_CORS_ALLOW_ORIGIN = "httpbind.CORS.domains";
-    
+
     public static final String HTTP_BIND_CORS_ALLOW_ORIGIN_DEFAULT = "*";
-    
+
     public static final String HTTP_BIND_CORS_ALLOW_METHODS_DEFAULT = "PROPFIND, PROPPATCH, COPY, MOVE, DELETE, MKCOL, LOCK, UNLOCK, PUT, GETLIB, VERSION-CONTROL, CHECKIN, CHECKOUT, UNCHECKOUT, REPORT, UPDATE, CANCELUPLOAD, HEAD, OPTIONS, GET, POST";
-    
+
     public static final String HTTP_BIND_CORS_ALLOW_HEADERS_DEFAULT = "Overwrite, Destination, Content-Type, Depth, User-Agent, X-File-Size, X-Requested-With, If-Modified-Since, X-File-Name, Cache-Control";
-    
+
     public static final String HTTP_BIND_CORS_MAX_AGE_DEFAULT = "86400";
 
     public static Map<String, Boolean> HTTP_BIND_ALLOWED_ORIGINS = new HashMap<String, Boolean>();
@@ -115,13 +115,13 @@ public final class HttpBindManager {
 
     private CertificateListener certificateListener;
 
-    private HttpSessionManager httpSessionManager;
+    private final HttpSessionManager httpSessionManager;
 
-    private ContextHandlerCollection contexts;
+    private final ContextHandlerCollection contexts;
 
     // is all orgin allowed flag
     private boolean allowAllOrigins;
-    
+
     public static HttpBindManager getInstance() {
         return instance;
     }
@@ -133,7 +133,7 @@ public final class HttpBindManager {
         PropertyEventDispatcher.addListener(new HttpServerPropertyListener());
         this.httpSessionManager = new HttpSessionManager();
         contexts = new ContextHandlerCollection();
-        
+
         // setup the cache for the allowed origins
         this.setupAllowedOriginsMap();
     }
@@ -174,7 +174,7 @@ public final class HttpBindManager {
         return httpSessionManager;
     }
 
-    private boolean isHttpBindServiceEnabled() {
+    private static boolean isHttpBindServiceEnabled() {
         return JiveGlobals.getBooleanProperty(HTTP_BIND_ENABLED, HTTP_BIND_ENABLED_DEFAULT);
     }
 
@@ -209,7 +209,7 @@ public final class HttpBindManager {
 
                 // Set policy for checking client certificates
                 String certPol = JiveGlobals.getProperty("xmpp.client.cert.policy", "disabled");
-                if(certPol.equals("needed")) {                    
+                if(certPol.equals("needed")) {
                 	sslContextFactory.setNeedClientAuth(true);
                 	sslContextFactory.setWantClientAuth(true);
                 } else if(certPol.equals("wanted")) {
@@ -219,7 +219,7 @@ public final class HttpBindManager {
                 	sslContextFactory.setNeedClientAuth(false);
                 	sslContextFactory.setWantClientAuth(false);
                 }
-                
+
                 final SslSelectChannelConnector sslConnector = new SslSelectChannelConnector(sslContextFactory);
                 sslConnector.setHost(getBindInterface());
                 sslConnector.setPort(securePort);
@@ -231,8 +231,8 @@ public final class HttpBindManager {
             Log.error("Error creating SSL connector for Http bind", e);
         }
     }
-    
-    private void configureProxiedConnector(AbstractConnector connector) {
+
+    private static void configureProxiedConnector(AbstractConnector connector) {
         // Check to see if we are deployed behind a proxy
         // Refer to http://docs.codehaus.org/display/JETTY/Configuring+Connectors
         if (isXFFEnabled()) {
@@ -260,7 +260,7 @@ public final class HttpBindManager {
         }
    }
 
-    private String getBindInterface() {
+    private static String getBindInterface() {
         String interfaceName = JiveGlobals.getXMLProperty("network.interface");
         String bindInterface = null;
         if (interfaceName != null) {
@@ -311,10 +311,10 @@ public final class HttpBindManager {
     public String getJavaScriptUrl() {
         return "http://" + XMPPServer.getInstance().getServerInfo().getXMPPDomain() + ":" +
                 bindPort + "/scripts/";
-    }   
+    }
 
     // http binding CORS support start
-    
+
     private void setupAllowedOriginsMap() {
         String originString = getCORSAllowOrigin();
         if (originString.equals(HTTP_BIND_CORS_ALLOW_ORIGIN_DEFAULT)) {
@@ -329,97 +329,98 @@ public final class HttpBindManager {
             }
         }
     }
-    
-    public boolean isCORSEnabled() {
+
+    public static boolean isCORSEnabled() {
         return JiveGlobals.getBooleanProperty(HTTP_BIND_CORS_ENABLED, HTTP_BIND_CORS_ENABLED_DEFAULT);
     }
-    
-    public void setCORSEnabled(Boolean value) {
-        if (value != null)
+
+    public static void setCORSEnabled(Boolean value) {
+        if (value != null) {
             JiveGlobals.setProperty(HTTP_BIND_CORS_ENABLED, String.valueOf(value));
+        }
     }
-    
-    public String getCORSAllowOrigin() {
+
+    public static String getCORSAllowOrigin() {
         return JiveGlobals.getProperty(HTTP_BIND_CORS_ALLOW_ORIGIN , HTTP_BIND_CORS_ALLOW_ORIGIN_DEFAULT);
     }
-    
+
     public void setCORSAllowOrigin(String origins) {
-        if (origins == null || origins.trim().length() == 0)
-             origins = HTTP_BIND_CORS_ALLOW_ORIGIN_DEFAULT;
-        else {
+        if (origins == null || origins.trim().length() == 0) {
+            origins = HTTP_BIND_CORS_ALLOW_ORIGIN_DEFAULT;
+        } else {
             origins = origins.replaceAll("\\s+", "");
         }
         JiveGlobals.setProperty(HTTP_BIND_CORS_ALLOW_ORIGIN, origins);
         setupAllowedOriginsMap();
     }
-    
+
     public boolean isAllOriginsAllowed() {
         return allowAllOrigins;
     }
-    
-    public boolean isThisOriginAllowed(String origin) {
+
+    public static boolean isThisOriginAllowed(String origin) {
         return HTTP_BIND_ALLOWED_ORIGINS.get(origin) != null;
     }
-    
+
     // http binding CORS support end
 
-    public boolean isXFFEnabled() {
+    public static boolean isXFFEnabled() {
         return JiveGlobals.getBooleanProperty(HTTP_BIND_FORWARDED, false);
     }
-    
-    public void setXFFEnabled(boolean enabled) {
+
+    public static void setXFFEnabled(boolean enabled) {
         JiveGlobals.setProperty(HTTP_BIND_FORWARDED, String.valueOf(enabled));
     }
-    
-    public String getXFFHeader() {
+
+    public static String getXFFHeader() {
         return JiveGlobals.getProperty(HTTP_BIND_FORWARDED_FOR);
     }
-    
-    public void setXFFHeader(String header) {
+
+    public static void setXFFHeader(String header) {
     	if (header == null || header.trim().length() == 0) {
     		JiveGlobals.deleteProperty(HTTP_BIND_FORWARDED_FOR);
     	} else {
     		JiveGlobals.setProperty(HTTP_BIND_FORWARDED_FOR, header);
     	}
     }
-    
-    public String getXFFServerHeader() {
+
+    public static String getXFFServerHeader() {
         return JiveGlobals.getProperty(HTTP_BIND_FORWARDED_SERVER);
     }
-    
-    public void setXFFServerHeader(String header) {
+
+    public static void setXFFServerHeader(String header) {
     	if (header == null || header.trim().length() == 0) {
     		JiveGlobals.deleteProperty(HTTP_BIND_FORWARDED_SERVER);
     	} else {
     		JiveGlobals.setProperty(HTTP_BIND_FORWARDED_SERVER, header);
     	}
     }
-    
-    public String getXFFHostHeader() {
+
+    public static String getXFFHostHeader() {
         return JiveGlobals.getProperty(HTTP_BIND_FORWARDED_HOST);
     }
-    
-    public void setXFFHostHeader(String header) {
+
+    public static void setXFFHostHeader(String header) {
     	if (header == null || header.trim().length() == 0) {
     		JiveGlobals.deleteProperty(HTTP_BIND_FORWARDED_HOST);
     	} else {
     		JiveGlobals.setProperty(HTTP_BIND_FORWARDED_HOST, header);
     	}
     }
-    
-    public String getXFFHostName() {
+
+    public static String getXFFHostName() {
         return JiveGlobals.getProperty(HTTP_BIND_FORWARDED_HOST_NAME);
     }
-    
-    public void setXFFHostName(String name) {
+
+    public static void setXFFHostName(String name) {
     	if (name == null || name.trim().length() == 0) {
     		JiveGlobals.deleteProperty(HTTP_BIND_FORWARDED_HOST_NAME);
     	} else {
     		JiveGlobals.setProperty(HTTP_BIND_FORWARDED_HOST_NAME, name);
     	}
     }
-    
-    public void setHttpBindEnabled(boolean isEnabled) {
+
+    public static void setHttpBindEnabled(boolean isEnabled) {
         JiveGlobals.setProperty(HTTP_BIND_ENABLED, String.valueOf(isEnabled));
     }
 
@@ -482,7 +483,7 @@ public final class HttpBindManager {
         		JiveGlobals.getIntProperty(HTTP_BIND_THREADS, HTTP_BIND_THREADS_DEFAULT));
         tp.setName("Jetty-QTP-BOSH");
         httpBindServer.setThreadPool(tp);
-        
+
         createConnector(port);
         createSSLConnector(securePort);
         if (httpConnector == null && httpsConnector == null) {
@@ -514,7 +515,7 @@ public final class HttpBindManager {
     private void createCrossDomainHandler(ContextHandlerCollection contexts, String crossPath)
     {
         ServletContextHandler context = new ServletContextHandler(contexts, crossPath, ServletContextHandler.SESSIONS);
-        context.addServlet(new ServletHolder(new HttpBindServlet()),"/crossdomain.xml");
+        context.addServlet(new ServletHolder(new FlashCrossDomainServlet()), "/crossdomain.xml");
     }
 
     private void loadStaticDirectory(ContextHandlerCollection contexts) {
@@ -562,7 +563,7 @@ public final class HttpBindManager {
      *
      * @return the HTTP binding port which does not use SSL.
      */
-    public int getHttpBindUnsecurePort() {
+    public static int getHttpBindUnsecurePort() {
         return JiveGlobals.getIntProperty(HTTP_BIND_PORT, HTTP_BIND_PORT_DEFAULT);
     }
 
@@ -571,7 +572,7 @@ public final class HttpBindManager {
      *
      * @return the HTTP binding port which uses SSL.
      */
-    public int getHttpBindSecurePort() {
+    public static int getHttpBindSecurePort() {
         return JiveGlobals.getIntProperty(HTTP_BIND_SECURE_PORT, HTTP_BIND_SECURE_PORT_DEFAULT);
     }
 
@@ -584,7 +585,7 @@ public final class HttpBindManager {
      * @see <a href="http://www.xmpp.org/extensions/xep-0124.html#script">BOSH: Alternative Script
      * Syntax</a>
      */
-    public boolean isScriptSyntaxEnabled() {
+    public static boolean isScriptSyntaxEnabled() {
         return JiveGlobals.getBooleanProperty("xmpp.httpbind.scriptSyntax.enabled", false);
     }
 
@@ -596,7 +597,7 @@ public final class HttpBindManager {
      * @see <a href="http://www.xmpp.org/extensions/xep-0124.html#script">BOSH: Alternative Script
      * Syntax</a>
      */
-    public void setScriptSyntaxEnabled(boolean isEnabled) {
+    public static void setScriptSyntaxEnabled(boolean isEnabled) {
         final String property = "xmpp.httpbind.scriptSyntax.enabled";
         if(!isEnabled) {
             JiveGlobals.deleteProperty(property);
@@ -687,7 +688,7 @@ public final class HttpBindManager {
             }
             else if (property.equalsIgnoreCase(HTTP_BIND_SECURE_PORT)) {
                 setSecureHttpBindPort(HTTP_BIND_SECURE_PORT_DEFAULT);
-            }        
+            }
         }
 
         public void xmlPropertySet(String property, Map<String, Object> params) {
