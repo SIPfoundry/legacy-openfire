@@ -14,6 +14,8 @@ URL: http://www.igniterealtime.org/
 BuildRequires: ant
 BuildRequires: java-devel >= 1.6
 
+Requires: chkconfig
+
 # disable JAR repacking. perm denied issues on in 'clean', just a general bad idea IMHO
 %define __jar_repack %{nil}
 
