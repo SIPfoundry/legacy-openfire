@@ -310,7 +310,9 @@ public class GroupManager {
         // If ID wan't found in cache, load it up and put it there.
         if (group == null) {
             synchronized (name.intern()) {
-                group = groupCache.get(name);
+                if (!forceLookup) {
+                    group = groupCache.get(name);
+                }
                 // If group wan't found in cache, load it up and put it there.
                 if (group == null) {
                     group = provider.getGroup(name);
