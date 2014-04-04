@@ -83,9 +83,9 @@ public class UserManager implements IQResultListener {
     }
 
     /** Cache of local users. */
-    private Cache<String, User> userCache;
+    private final Cache<String, User> userCache;
     /** Cache if a local or remote user exists. */
-    private Cache<String, Boolean> remoteUsersCache;
+    private final Cache<String, Boolean> remoteUsersCache;
     private UserProvider provider;
 
     private UserManager() {
@@ -221,18 +221,27 @@ public class UserManager implements IQResultListener {
      * @throws UserNotFoundException if the user does not exist.
      */
     public User getUser(String username) throws UserNotFoundException {
+        return getUser(username, false);
+    }
+
+    public User getUser(String username, boolean forceLookup) throws UserNotFoundException {
         if (username == null) {
             throw new UserNotFoundException("Username cannot be null");
         }
         // Make sure that the username is valid.
-        username = username.trim().toLowerCase();
-        User user = userCache.get(username);
+        String trimmedUsername = username.trim().toLowerCase();
+        User user = null;
+        if (!forceLookup) {
+            user = userCache.get(trimmedUsername);
+        }
         if (user == null) {
-            synchronized (username.intern()) {
-                user = userCache.get(username);
+            synchronized (trimmedUsername.intern()) {
+                if (!forceLookup) {
+                    user = userCache.get(trimmedUsername);
+                }
                 if (user == null) {
-                    user = provider.loadUser(username);
-                    userCache.put(username, user);
+                    user = provider.loadUser(trimmedUsername);
+                    userCache.put(trimmedUsername, user);
                 }
             }
         }
