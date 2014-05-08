@@ -248,10 +248,12 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         return answer;
     }
 
+    @Override
     public void groupCreated(Group group, Map params) {
         //Do nothing
     }
 
+    @Override
     public void groupDeleting(Group group, Map params) {
         // Get group members
         Collection<JID> users = new HashSet<JID>(group.getMembers());
@@ -264,6 +266,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         }
     }
 
+    @Override
     public void groupModified(Group group, Map params) {
         // Do nothing if no group property has been modified
         if ("propertyDeleted".equals(params.get("type"))) {
@@ -353,27 +356,32 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         this.routingTable = server.getRoutingTable();
 
         RosterEventDispatcher.addListener(new RosterEventListener() {
+            @Override
             public void rosterLoaded(Roster roster) {
                 // Do nothing
             }
 
+            @Override
             public boolean addingContact(Roster roster, RosterItem item, boolean persistent) {
                 // Do nothing
                 return true;
             }
 
+            @Override
             public void contactAdded(Roster roster, RosterItem item) {
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 rosterCache.put(roster.getUsername(), roster);
             }
 
+            @Override
             public void contactUpdated(Roster roster, RosterItem item) {
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
                 rosterCache.put(roster.getUsername(), roster);
             }
 
+            @Override
             public void contactDeleted(Roster roster, RosterItem item) {
                 // Set object again in cache. This is done so that other cluster nodes
                 // get refreshed with latest version of the object
@@ -412,6 +420,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         return false;
     }
 
+    @Override
     public void memberAdded(Group group, Map params) {
         JID addedUser = new JID((String) params.get("member"));
         // Do nothing if the user was an admin that became a member
@@ -431,6 +440,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         }
     }
 
+    @Override
     public void memberRemoved(Group group, Map params) {
         String member = (String) params.get("member");
         if (member == null) {
@@ -454,6 +464,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         }
     }
 
+    @Override
     public void adminAdded(Group group, Map params) {
         JID addedUser = new JID((String) params.get("admin"));
         // Do nothing if the user was a member that became an admin
@@ -473,6 +484,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         }
     }
 
+    @Override
     public void adminRemoved(Group group, Map params) {
         JID deletedUser = new JID((String) params.get("admin"));
         // Do nothing if the user is still a member
@@ -501,6 +513,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
      * @param newUser the newly created user.
      * @param params event parameters.
      */
+    @Override
     public void userCreated(User newUser, Map<String,Object> params) {
         JID newUserJID = server.createJID(newUser.getUsername(), null);
         // Shared public groups that are public should have a presence subscription
@@ -537,6 +550,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         }
     }
 
+    @Override
     public void userDeleting(User user, Map<String,Object> params) {
         // Shared public groups that have a presence subscription of type FROM
         // for the deleted user should no longer have a reference to the deleted user
@@ -577,6 +591,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
         deleteRoster(userJID);
     }
 
+    @Override
     public void userModified(User user, Map<String,Object> params) {
         //Do nothing
     }
@@ -927,6 +942,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
     @Override
 	public void start() throws IllegalStateException {
         super.start();
+        GroupManager.getInstance();
         // Add this module as a user event listener so we can update
         // rosters when users are created or deleted
         UserEventDispatcher.addListener(this);
