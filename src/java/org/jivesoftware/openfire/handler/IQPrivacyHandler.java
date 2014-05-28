@@ -28,7 +28,8 @@ import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.event.UserEventListener;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
-import org.jivesoftware.openfire.privacy.PrivacyListProvider;
+import org.jivesoftware.openfire.provider.PrivacyListProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserManager;
@@ -51,7 +52,7 @@ public class IQPrivacyHandler extends IQHandler
 
     private IQHandlerInfo info;
     private PrivacyListManager manager = PrivacyListManager.getInstance();
-    private PrivacyListProvider provider = new PrivacyListProvider();
+    private PrivacyListProvider provider = ProviderFactory.getPrivacyListProvider();
 
     public IQPrivacyHandler() {
         super("Blocking Communication Handler");

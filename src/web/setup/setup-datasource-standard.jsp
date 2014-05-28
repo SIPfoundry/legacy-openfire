@@ -5,7 +5,7 @@
   -	$Date: 2005-08-11 12:56:15 -0700 (Thu, 11 Aug 2005) $
 --%>
 
-<%@ page import="org.jivesoftware.database.DbConnectionManager,
+<%@ page import="org.jivesoftware.openfire.provider.ProviderFactory,
                  org.jivesoftware.database.DefaultConnectionProvider,
                  org.jivesoftware.util.ClassUtils,
                  org.jivesoftware.util.JiveGlobals,
@@ -40,40 +40,16 @@
 <%!
     boolean testConnection(Map<String,String> errors) {
         boolean success = true;
-        Connection con = null;
         try {
-            con = DbConnectionManager.getConnection();
-            if (con == null) {
-            }
-            else {
-            	// See if the Jive db schema is installed.
-            	try {
-            		Statement stmt = con.createStatement();
-            		// Pick an arbitrary table to see if it's there.
-            		stmt.executeQuery("SELECT * FROM ofID");
-            		stmt.close();
-            	}
-            	catch (SQLException sqle) {
-                    success = false;
-                    sqle.printStackTrace();
-                    errors.put("general","The Openfire database schema does not "
-                        + "appear to be installed. Follow the installation guide to "
-                        + "fix this error.");
-            	}
-            }
+            ProviderFactory.getConnectivityProvider().verifyDataSource();
         }
-        catch (SQLException ex) {
+        catch (Exception e) {
             success = false;
-            errors.put("general","A connection to the database could not be "
-                + "made. View the error message by opening the "
-                + "\"" + File.separator + "logs" + File.separator + "error.log\" log "
-                + "file, then go back to fix the problem.");
+            e.printStackTrace();
+            errors.put("general","The Openfire database schema does not "
+                + "appear to be installed. Follow the installation guide to "
+                + "fix this error.");
 
-        }
-        finally {
-            try {
-        	    con.close();
-            } catch (Exception ignored) {}
         }
         return success;
     }
@@ -140,13 +116,13 @@
                 conProvider.setServerURL(serverURL);
                 conProvider.setUsername(username);
                 conProvider.setPassword(password);
-                conProvider.setTestSQL(DbConnectionManager.getTestSQL(driver));
+                conProvider.setTestSQL(ProviderFactory.getConnectionManagerWrapper().getTestQuery(driver));
 
                 JiveGlobals.setXMLProperty("database.defaultProvider.driver", driver);
                 JiveGlobals.setXMLProperty("database.defaultProvider.serverURL", serverURL);
                 JiveGlobals.setXMLProperty("database.defaultProvider.username", username);
                 JiveGlobals.setXMLProperty("database.defaultProvider.password", password);
-                JiveGlobals.setXMLProperty("database.defaultProvider.testSQL", DbConnectionManager.getTestSQL(driver));
+                JiveGlobals.setXMLProperty("database.defaultProvider.testSQL", ProviderFactory.getConnectionManagerWrapper().getTestQuery(driver));
 
                 JiveGlobals.setXMLProperty("database.defaultProvider.minConnections",
                         Integer.toString(minConnections));
@@ -161,7 +137,7 @@
                 Log.error(e);
             }
             // No errors setting the properties, so test the connection
-            DbConnectionManager.setConnectionProvider(conProvider);
+            ProviderFactory.getConnectionManagerWrapper().setConnectionProvider(conProvider);
             if (testConnection(errors)) {
                 // Success, move on
                 response.sendRedirect("setup-profile-settings.jsp");

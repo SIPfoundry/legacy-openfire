@@ -1,7 +1,7 @@
 package org.jivesoftware.openfire.pubsub.cluster;
 
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.pubsub.NodeSubscription;
-import org.jivesoftware.openfire.pubsub.PubSubPersistenceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +22,6 @@ public class ModifySubscriptionTask extends SubscriptionTask
 	public void run()
 	{
 		log.debug("[TASK] Modify subscription : {}", toString());
-		PubSubPersistenceManager.loadSubscription(getService(), getNode(), getSubscriptionId());
+		ProviderFactory.getPubsubProvider().loadSubscription(getNode(), getSubscriptionId());
 	}
 }

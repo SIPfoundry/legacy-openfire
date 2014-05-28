@@ -29,6 +29,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.dom4j.Element;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.cache.CacheFactory;
 import org.xmpp.forms.DataForm;
@@ -75,6 +77,11 @@ public class LeafNode extends Node {
     private PublishedItem lastPublished;
 
     // TODO Add checking of max payload size. Return <not-acceptable> plus a application specific error condition of <payload-too-big/>.
+
+    /**
+     * Provider for underlying storage
+     */
+    protected final PubSubProvider provider = ProviderFactory.getPubsubProvider();
 
     public LeafNode(PubSubService service, CollectionNode parentNode, String nodeID, JID creator) {
         super(service, parentNode, nodeID, creator);
@@ -249,7 +256,7 @@ public class LeafNode extends Node {
                 // Add the new published item to the queue of items to add to the database. The
                 // queue is going to be processed by another thread
                 if (isPersistPublishedItems()) {
-                	PubSubPersistenceManager.savePublishedItem(newItem);
+                	provider.savePublishedItem(newItem);
                 }
             }
         }
@@ -286,7 +293,7 @@ public class LeafNode extends Node {
     public void deleteItems(List<PublishedItem> toDelete) {
         // Remove deleted items from the database
         for (PublishedItem item : toDelete) {
-            PubSubPersistenceManager.removePublishedItem(item);
+            provider.removePublishedItem(item);
         }
         if (isNotifiedOfRetract()) {
             // Broadcast notification deletion to subscribers
@@ -345,23 +352,23 @@ public class LeafNode extends Node {
         if (!isItemRequired()) {
             return null;
         }
-        return PubSubPersistenceManager.getPublishedItem(this, itemID);
+        return provider.getPublishedItem(this, itemID);
     }
 
     @Override
 	public List<PublishedItem> getPublishedItems() {
-        return PubSubPersistenceManager.getPublishedItems(this, getMaxPublishedItems());
+        return provider.getPublishedItems(this, getMaxPublishedItems());
     }
 
     @Override
 	public List<PublishedItem> getPublishedItems(int recentItems) {
-        return PubSubPersistenceManager.getPublishedItems(this, recentItems);
+        return provider.getPublishedItems(this, recentItems);
     }
 
     @Override
 	public synchronized PublishedItem getLastPublishedItem() {
     	if (lastPublished == null){
-    		lastPublished = PubSubPersistenceManager.getLastPublishedItem(this);
+    		lastPublished = provider.getLastPublishedItem(this);
     	}
     	return lastPublished;
     }
@@ -398,7 +405,7 @@ public class LeafNode extends Node {
      * published items will be deleted with the exception of the last published item.
      */
     public void purge() {
-        PubSubPersistenceManager.purgeNode(this);
+        provider.purgeNode(this);
         // Broadcast purge notification to subscribers
         // Build packet to broadcast to subscribers
         Message message = new Message();

@@ -28,7 +28,8 @@ import java.util.ListIterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.jivesoftware.openfire.muc.cluster.UpdateHistoryStrategy;
-import org.jivesoftware.openfire.muc.spi.MUCPersistenceManager;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.cache.CacheFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,6 +86,11 @@ public class HistoryStrategy {
     private String contextSubdomain = null;
 
     /**
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
+
+    /**
      * Create a history strategy with the given parent strategy (for defaults) or null if no 
      * parent exists.
      *
@@ -122,7 +128,7 @@ public class HistoryStrategy {
         }
         this.maxNumber = max;
         if (contextPrefix != null){
-            MUCPersistenceManager.setProperty(contextSubdomain, contextPrefix + ".maxNumber", Integer.toString(maxNumber));
+        	provider.setProperty(contextSubdomain, contextPrefix + ".maxNumber", Integer.toString(maxNumber));
         }
         if (parent == null) {
             // Update the history strategy of the MUC service
@@ -144,7 +150,7 @@ public class HistoryStrategy {
             type = newType;
         }
         if (contextPrefix != null){
-            MUCPersistenceManager.setProperty(contextSubdomain, contextPrefix + ".type", type.toString());
+        	provider.setProperty(contextSubdomain, contextPrefix + ".type", type.toString());
         }
         if (parent == null) {
             // Update the history strategy of the MUC service
@@ -289,8 +295,8 @@ public class HistoryStrategy {
     public void setContext(String subdomain, String prefix) {
         this.contextSubdomain = subdomain;
         this.contextPrefix = prefix;
-        setTypeFromString(MUCPersistenceManager.getProperty(subdomain, prefix + ".type"));
-        String maxNumberString = MUCPersistenceManager.getProperty(subdomain, prefix + ".maxNumber");
+        setTypeFromString(provider.getProperty(subdomain, prefix + ".type"));
+        String maxNumberString = provider.getProperty(subdomain, prefix + ".maxNumber");
         if (maxNumberString != null && maxNumberString.trim().length() > 0){
             try {
                 this.maxNumber = Integer.parseInt(maxNumberString);

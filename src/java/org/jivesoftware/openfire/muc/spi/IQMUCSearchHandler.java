@@ -23,6 +23,8 @@ import org.dom4j.Element;
 import org.dom4j.QName;
 import org.jivesoftware.openfire.muc.MUCRoom;
 import org.jivesoftware.openfire.muc.MultiUserChatService;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.xmpp.forms.DataForm;
 import org.xmpp.forms.FormField;
 import org.xmpp.packet.IQ;
@@ -381,7 +383,8 @@ public class IQMUCSearchHandler
 	private static boolean canBeIncludedInResult(MUCRoom room)
 	{
 		// Check if locked rooms may be discovered
-		final boolean discoverLocked = MUCPersistenceManager.getBooleanProperty(room.getMUCService().getServiceName(), "discover.locked", true);
+		MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
+		final boolean discoverLocked = provider.getBooleanProperty(room.getMUCService().getServiceName(), "discover.locked", true);
 
 		if (!discoverLocked && room.isLocked())
 		{

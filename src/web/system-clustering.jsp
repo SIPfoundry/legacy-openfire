@@ -21,7 +21,7 @@
 <%@ taglib uri="http://java.sun.com/jstl/core_rt" prefix="c" %>
 <%@ taglib uri="http://java.sun.com/jstl/fmt_rt" prefix="fmt" %>
 
-<%@ page import="org.jivesoftware.database.DbConnectionManager"
+<%@ page import="org.jivesoftware.openfire.provider.ProviderFactory"
     errorPage="error.jsp"
 %>
 <%@ page import="org.jivesoftware.openfire.XMPPServer" %>
@@ -80,7 +80,7 @@
         }
     }
 
-    boolean usingEmbeddedDB = DbConnectionManager.isEmbeddedDB();
+    boolean usingEmbeddedDB = ProviderFactory.getConnectionManagerWrapper().isEmbeddedDB();
     boolean clusteringAvailable = !usingEmbeddedDB && ClusterManager.isClusteringAvailable();
     int maxClusterNodes = ClusterManager.getMaxClusterNodes();
     clusteringEnabled = ClusterManager.isClusteringStarted() || ClusterManager.isClusteringStarting();

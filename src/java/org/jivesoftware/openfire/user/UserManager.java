@@ -33,6 +33,8 @@ import org.dom4j.Element;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.event.UserEventDispatcher;
 import org.jivesoftware.openfire.event.UserEventListener;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.util.ClassUtils;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.PropertyEventDispatcher;
@@ -462,21 +464,6 @@ public class UserManager implements IQResultListener {
     }
 
     private void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.user.className");
-
-        String className = JiveGlobals.getProperty("provider.user.className",
-                "org.jivesoftware.openfire.user.DefaultUserProvider");
-        // Check if we need to reset the provider class
-        if (provider == null || !className.equals(provider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                provider = (UserProvider) c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading user provider: " + className, e);
-                provider = new DefaultUserProvider();
-            }
-        }
+    	provider = ProviderFactory.getUserProvider();
     }
 }

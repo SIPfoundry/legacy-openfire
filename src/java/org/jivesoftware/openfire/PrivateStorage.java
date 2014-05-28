@@ -36,6 +36,8 @@ import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.container.BasicModule;
 import org.jivesoftware.openfire.event.UserEventDispatcher;
 import org.jivesoftware.openfire.event.UserEventListener;
+import org.jivesoftware.openfire.provider.PrivateStorageProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.LocaleUtils;
@@ -52,15 +54,6 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
 
 	private static final Logger Log = LoggerFactory.getLogger(PrivateStorage.class);
 
-    private static final String LOAD_PRIVATE =
-        "SELECT privateData FROM ofPrivate WHERE username=? AND namespace=?";
-    private static final String INSERT_PRIVATE =
-        "INSERT INTO ofPrivate (privateData,name,username,namespace) VALUES (?,?,?,?)";
-    private static final String UPDATE_PRIVATE =
-        "UPDATE ofPrivate SET privateData=?, name=? WHERE username=? AND namespace=?";
-    private static final String DELETE_PRIVATES =
-        "DELETE FROM ofPrivate WHERE username=?";
-
     private static final int POOL_SIZE = 10;
     
     // Currently no delete supported, we can detect an add of an empty element and
@@ -74,6 +67,12 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
      * Pool of SAX Readers. SAXReader is not thread safe so we need to have a pool of readers.
      */
     private BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<SAXReader>(POOL_SIZE);
+
+
+    /**
+     * Provider for underlying storage
+     */
+    private final PrivateStorageProvider provider = ProviderFactory.getPrivateStorageProvider();
 
     /**
      * Constructs a new PrivateStore instance.
@@ -110,40 +109,7 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
      */
     public void add(String username, Element data) {
         if (enabled) {
-            Connection con = null;
-            PreparedStatement pstmt = null;
-            ResultSet rs = null;
-            try {
-                StringWriter writer = new StringWriter();
-                data.write(writer);
-                con = DbConnectionManager.getConnection();
-                pstmt = con.prepareStatement(LOAD_PRIVATE);
-                pstmt.setString(1, username);
-                pstmt.setString(2, data.getNamespaceURI());
-                rs = pstmt.executeQuery();
-                boolean update = false;
-                if (rs.next()) {
-                    update = true;
-                }
-                DbConnectionManager.fastcloseStmt(rs, pstmt);
-                if (update) {
-                    pstmt = con.prepareStatement(UPDATE_PRIVATE);
-                }
-                else {
-                    pstmt = con.prepareStatement(INSERT_PRIVATE);
-                }
-                pstmt.setString(1, writer.toString());
-                pstmt.setString(2, data.getName());
-                pstmt.setString(3, username);
-                pstmt.setString(4, data.getNamespaceURI());
-                pstmt.executeUpdate();
-            }
-            catch (Exception e) {
-                Log.error(LocaleUtils.getLocalizedString("admin.error"), e);
-            }
-            finally {
-                DbConnectionManager.closeConnection(rs, pstmt, con);
-            }
+        	provider.add(username, data);
         }
     }
 
@@ -170,17 +136,7 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
             try {
                 // Get a sax reader from the pool
                 xmlReader = xmlReaders.take();
-                con = DbConnectionManager.getConnection();
-                pstmt = con.prepareStatement(LOAD_PRIVATE);
-                pstmt.setString(1, username);
-                pstmt.setString(2, data.getNamespaceURI());
-                rs = pstmt.executeQuery();
-                if (rs.next()) {
-                    data.clearContent();
-                    String result = rs.getString(1).trim();
-                    Document doc = xmlReader.read(new StringReader(result));
-                    data = doc.getRootElement();
-                }
+                provider.get(username, data, xmlReader);
             }
             catch (Exception e) {
                 Log.error(LocaleUtils.getLocalizedString("admin.error"), e);
@@ -201,21 +157,7 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
     }
 
     public void userDeleting(User user, Map params) {
-        // Delete all private properties of the user
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(DELETE_PRIVATES);
-            pstmt.setString(1, user.getUsername());
-            pstmt.executeUpdate();
-        }
-        catch (Exception e) {
-            Log.error(LocaleUtils.getLocalizedString("admin.error"), e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
-        }
+    	provider.userDeleting(user, params);
     }
 
     public void userModified(User user, Map params) {

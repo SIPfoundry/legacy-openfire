@@ -29,6 +29,7 @@ import java.util.List;
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.database.SequenceManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.SecurityAuditProvider;
 import org.jivesoftware.util.JiveConstants;
 import org.jivesoftware.util.StringUtils;
 import org.slf4j.Logger;
@@ -61,7 +62,7 @@ public class DefaultSecurityAuditProvider implements SecurityAuditProvider {
 
     /**
      * The default provider logs events into a ofSecurityAuditLog table in the database.
-     * @see org.jivesoftware.openfire.security.SecurityAuditProvider#logEvent(String, String, String)
+     * @see org.jivesoftware.openfire.provider.SecurityAuditProvider#logEvent(String, String, String)
      */
     public void logEvent(String username, String summary, String details) {
         Connection con = null;
@@ -88,7 +89,7 @@ public class DefaultSecurityAuditProvider implements SecurityAuditProvider {
 
     /**
      * The default provider retrieves events from a ofSecurityAuditLog table in the database.
-     * @see org.jivesoftware.openfire.security.SecurityAuditProvider#getEvents(String, Integer, Integer, java.util.Date, java.util.Date)
+     * @see org.jivesoftware.openfire.provider.SecurityAuditProvider#getEvents(String, Integer, Integer, java.util.Date, java.util.Date)
      */
     public List<SecurityAuditEvent> getEvents(String username, Integer skipEvents, Integer numEvents, Date startTime, Date endTime) {
         List<SecurityAuditEvent> events = new ArrayList<SecurityAuditEvent>();
@@ -170,7 +171,7 @@ public class DefaultSecurityAuditProvider implements SecurityAuditProvider {
 
     /**
      * The default provider retrieves events from a ofSecurityAuditLog table in the database.
-     * @see org.jivesoftware.openfire.security.SecurityAuditProvider#getEvent(Integer)
+     * @see org.jivesoftware.openfire.provider.SecurityAuditProvider#getEvent(Integer)
      */
     public SecurityAuditEvent getEvent(Integer msgID) throws EventNotFoundException {
         Connection con = null;
@@ -205,7 +206,7 @@ public class DefaultSecurityAuditProvider implements SecurityAuditProvider {
 
     /**
      * The default provider counts the number of entries in the ofSecurityAuditLog table.
-     * @see org.jivesoftware.openfire.security.SecurityAuditProvider#getEventCount()
+     * @see org.jivesoftware.openfire.provider.SecurityAuditProvider#getEventCount()
      */
     public Integer getEventCount() {
         Connection con = null;
@@ -231,7 +232,7 @@ public class DefaultSecurityAuditProvider implements SecurityAuditProvider {
 
     /**
      * The default provider writes logs into a local Openfire database.
-     * @see org.jivesoftware.openfire.security.SecurityAuditProvider#isWriteOnly()
+     * @see org.jivesoftware.openfire.provider.SecurityAuditProvider#isWriteOnly()
      */
     public boolean isWriteOnly() {
         return false;
@@ -239,7 +240,7 @@ public class DefaultSecurityAuditProvider implements SecurityAuditProvider {
 
     /**
      * The default provider uses Openfire's own audit log viewer.
-     * @see org.jivesoftware.openfire.security.SecurityAuditProvider#getAuditURL()
+     * @see org.jivesoftware.openfire.provider.SecurityAuditProvider#getAuditURL()
      */
     public String getAuditURL() {
         return null;
@@ -247,7 +248,7 @@ public class DefaultSecurityAuditProvider implements SecurityAuditProvider {
 
     /**
      * The default provider logs user events.
-     * @see org.jivesoftware.openfire.security.SecurityAuditProvider#blockUserEvents()
+     * @see org.jivesoftware.openfire.provider.SecurityAuditProvider#blockUserEvents()
      */
     public boolean blockUserEvents() {
         return false;
@@ -255,7 +256,7 @@ public class DefaultSecurityAuditProvider implements SecurityAuditProvider {
 
     /**
      * The default provider logs group events.
-     * @see org.jivesoftware.openfire.security.SecurityAuditProvider#blockGroupEvents()
+     * @see org.jivesoftware.openfire.provider.SecurityAuditProvider#blockGroupEvents()
      */
     public boolean blockGroupEvents() {
         return false;

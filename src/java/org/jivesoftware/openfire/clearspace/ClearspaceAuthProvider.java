@@ -18,7 +18,7 @@
  */
 package org.jivesoftware.openfire.clearspace;
 
-import org.jivesoftware.openfire.auth.AuthProvider;
+import org.jivesoftware.openfire.provider.AuthProvider;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.auth.ConnectionException;
 import org.jivesoftware.openfire.auth.InternalUnauthenticatedException;

@@ -963,6 +963,29 @@ public class DbConnectionManager {
         }
     }
 
+    public static boolean isSetupMode() {
+        // Check if the DB configuration is done
+        if (getConnectionProvider() == null) {
+            // DB setup is still not completed so setup is needed
+            return true;
+        }
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        try {
+            con = getConnection();
+            // Properties can now be loaded from DB so consider setup done
+        }
+        catch (SQLException e) {
+            // Properties cannot be loaded from DB so do not consider setup done
+            return true;
+        }
+        finally {
+            closeConnection(pstmt, con);
+        }
+    	 
+        return false;
+	}
+
     /**
      * A class that identifies the type of the database that Jive is connected
      * to. In most cases, we don't want to make any database specific calls

@@ -31,6 +31,8 @@ import org.jivesoftware.openfire.container.BasicModule;
 import org.jivesoftware.openfire.disco.ServerFeaturesProvider;
 import org.jivesoftware.openfire.event.UserEventAdapter;
 import org.jivesoftware.openfire.event.UserEventDispatcher;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.VCardProvider;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.util.AlreadyExistsException;
 import org.jivesoftware.util.ClassUtils;
@@ -248,21 +250,7 @@ public class VCardManager extends BasicModule implements ServerFeaturesProvider 
     @Override
 	public void initialize(XMPPServer server) {
         instance = this;
-
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.vcard.className");
-
-        // Load a VCard provider.
-        String className = JiveGlobals.getProperty("provider.vcard.className",
-                DefaultVCardProvider.class.getName());
-        try {
-            Class c = ClassUtils.forName(className);
-            provider = (VCardProvider) c.newInstance();
-        }
-        catch (Exception e) {
-            Log.error("Error loading vcard provider: " + className, e);
-            provider = new DefaultVCardProvider();
-        }
+        provider = ProviderFactory.getVCardProvider();
     }
 
     @Override

@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.provider.PrivacyListProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,9 +44,9 @@ import org.slf4j.LoggerFactory;
  *
  * @author Gaston Dombiak
  */
-public class PrivacyListProvider {
+public class DefaultPrivacyListProvider implements PrivacyListProvider {
 
-	private static final Logger Log = LoggerFactory.getLogger(PrivacyListProvider.class);
+	private static final Logger Log = LoggerFactory.getLogger(DefaultPrivacyListProvider.class);
 
     private static final String PRIVACY_LIST_COUNT =
             "SELECT count(*) from ofPrivacyList";
@@ -75,7 +76,7 @@ public class PrivacyListProvider {
      */
     private AtomicInteger privacyListCount;
 
-    public PrivacyListProvider() {
+    public DefaultPrivacyListProvider() {
         super();
         // Initialize the pool of sax readers
         for (int i=0; i<POOL_SIZE; i++) {

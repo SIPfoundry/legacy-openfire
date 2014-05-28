@@ -16,10 +16,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jivesoftware.openfire.security;
+package org.jivesoftware.openfire.provider;
 
 import java.util.List;
 import java.util.Date;
+
+import org.jivesoftware.openfire.security.EventNotFoundException;
+import org.jivesoftware.openfire.security.SecurityAuditEvent;
 
 /**
  * A SecurityAuditProvider handles storage and retrieval of security audit logs.  If set to

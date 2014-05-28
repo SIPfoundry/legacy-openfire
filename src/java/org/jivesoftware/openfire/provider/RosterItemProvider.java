@@ -1,7 +1,8 @@
-package org.jivesoftware.openfire.roster;
+package org.jivesoftware.openfire.provider;
 
 import java.util.Iterator;
 
+import org.jivesoftware.openfire.roster.RosterItem;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 

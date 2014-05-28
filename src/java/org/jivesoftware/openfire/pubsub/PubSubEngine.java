@@ -39,6 +39,7 @@ import org.jivesoftware.openfire.RoutingTable;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.XMPPServerListener;
 import org.jivesoftware.openfire.component.InternalComponentManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.pubsub.cluster.RefreshNodeTask;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.user.UserManager;
@@ -1738,7 +1739,7 @@ public class PubSubEngine {
     }
 
     public void shutdown(PubSubService service) {
-    	PubSubPersistenceManager.shutdown();
+    	ProviderFactory.getPubsubProvider().shutdown();
     	if (service != null) {
 
     		if (service.getManager() != null) {

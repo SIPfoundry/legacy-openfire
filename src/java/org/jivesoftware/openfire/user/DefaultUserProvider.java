@@ -37,6 +37,8 @@ import java.util.Set;
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.AuthFactory;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.StringUtils;
@@ -72,8 +74,6 @@ public class DefaultUserProvider implements UserProvider {
             "VALUES (?,?,?,?,?,?,?)";
     private static final String DELETE_USER_FLAGS =
             "DELETE FROM ofUserFlag WHERE username=?";
-    private static final String DELETE_USER_PROPS =
-            "DELETE FROM ofUserProp WHERE username=?";
     private static final String DELETE_USER =
             "DELETE FROM ofUser WHERE username=?";
     private static final String UPDATE_NAME =
@@ -196,21 +196,18 @@ public class DefaultUserProvider implements UserProvider {
         boolean abortTransaction = false;
         try {
             // Delete all of the users's extended properties
-            con = DbConnectionManager.getTransactionConnection();
-            pstmt = con.prepareStatement(DELETE_USER_PROPS);
-            pstmt.setString(1, username);
-            pstmt.execute();
-            DbConnectionManager.fastcloseStmt(pstmt);
+        	boolean propsDeleted = ProviderFactory.getUserPropertiesProvider().deleteUserProperties(username);
+            if (propsDeleted) {
+                pstmt = con.prepareStatement(DELETE_USER_FLAGS);
+                pstmt.setString(1, username);
+                pstmt.execute();
+                DbConnectionManager.fastcloseStmt(pstmt);
 
-            pstmt = con.prepareStatement(DELETE_USER_FLAGS);
-            pstmt.setString(1, username);
-            pstmt.execute();
-            DbConnectionManager.fastcloseStmt(pstmt);
-
-            // Delete the actual user entry
-            pstmt = con.prepareStatement(DELETE_USER);
-            pstmt.setString(1, username);
-            pstmt.execute();
+                // Delete the actual user entry
+                pstmt = con.prepareStatement(DELETE_USER);
+                pstmt.setString(1, username);
+                pstmt.execute();
+            }
         }
         catch (Exception e) {
             Log.error(e.getMessage(), e);

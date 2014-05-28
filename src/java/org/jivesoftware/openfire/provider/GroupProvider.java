@@ -18,11 +18,15 @@
  * limitations under the License.
  */
 
-package org.jivesoftware.openfire.group;
+package org.jivesoftware.openfire.provider;
 
 import java.util.Collection;
 import java.util.Map;
 
+import org.jivesoftware.openfire.group.AbstractGroupProvider;
+import org.jivesoftware.openfire.group.Group;
+import org.jivesoftware.openfire.group.GroupAlreadyExistsException;
+import org.jivesoftware.openfire.group.GroupNotFoundException;
 import org.jivesoftware.util.PersistableMap;
 import org.xmpp.packet.JID;
 

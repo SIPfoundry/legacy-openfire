@@ -44,6 +44,8 @@ import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.RosterItemProvider;
 import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNameManager;
@@ -85,7 +87,7 @@ public class Roster implements Cacheable, Externalizable {
      */
     protected ConcurrentHashMap<String, Set<String>> implicitFrom = new ConcurrentHashMap<String, Set<String>>();
 
-    private RosterItemProvider rosterItemProvider;
+    private RosterItemProvider rosterItemProvider = ProviderFactory.getRosterProvider();
     private String username;
     private SessionManager sessionManager;
     private XMPPServer server = XMPPServer.getInstance();
@@ -129,7 +131,6 @@ public class Roster implements Cacheable, Externalizable {
         //Collection<Group> userGroups = GroupManager.getInstance().getGroups(getUserJID());
 
         // Add RosterItems that belong to the personal roster
-        rosterItemProvider = RosterManager.getRosterItemProvider();
         Iterator<RosterItem> items = rosterItemProvider.getItems(username);
         while (items.hasNext()) {
             RosterItem item = items.next();
@@ -1123,7 +1124,6 @@ public class Roster implements Cacheable, Externalizable {
         presenceManager = XMPPServer.getInstance().getPresenceManager();
         rosterManager = XMPPServer.getInstance().getRosterManager();
         sessionManager = SessionManager.getInstance();
-        rosterItemProvider = RosterManager.getRosterItemProvider();
         routingTable = XMPPServer.getInstance().getRoutingTable();
 
         username = ExternalizableUtil.getInstance().readSafeUTF(in);

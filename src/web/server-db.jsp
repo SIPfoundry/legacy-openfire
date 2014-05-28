@@ -18,7 +18,7 @@
 --%>
 
 <%@ page import="org.jivesoftware.util.*,
-                 org.jivesoftware.database.DbConnectionManager,
+                 org.jivesoftware.openfire.provider.ProviderFactory,
                  java.sql.*"
     errorPage="error.jsp"
 %>
@@ -43,8 +43,7 @@
 <%  // Get metadata about the database
     Connection con = null;
     try {
-        con = DbConnectionManager.getConnection();
-        DatabaseMetaData metaData = con.getMetaData();
+        DatabaseMetaData metaData = ProviderFactory.getConnectionManagerWrapper().getMetaData();
 %>
 
 <p>
@@ -165,7 +164,7 @@
         catch (SQLException e) { Log.error(e); }
     }
 
-    if (DbConnectionManager.getConnectionProvider().isPooled()) {
+    if (ProviderFactory.getConnectionManagerWrapper().getConnectionProvider().isPooled()) {
         try {
             // Get metadata about the connection pool
             ConnectionPoolDefinitionIF poolDef = ProxoolFacade.getConnectionPoolDefinition("openfire");

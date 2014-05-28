@@ -41,6 +41,9 @@ import org.jivesoftware.openfire.event.UserEventListener;
 import org.jivesoftware.openfire.handler.PresenceUpdateHandler;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
+import org.jivesoftware.openfire.provider.PresenceProvider;
+import org.jivesoftware.openfire.provider.PresenceProvider.TimePresence;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.roster.Roster;
 import org.jivesoftware.openfire.roster.RosterItem;
 import org.jivesoftware.openfire.roster.RosterManager;
@@ -67,13 +70,6 @@ public class PresenceManagerImpl extends BasicModule implements PresenceManager,
 
 	private static final Logger Log = LoggerFactory.getLogger(PresenceManagerImpl.class);
 
-    private static final String LOAD_OFFLINE_PRESENCE =
-            "SELECT offlinePresence, offlineDate FROM ofPresence WHERE username=?";
-    private static final String INSERT_OFFLINE_PRESENCE =
-            "INSERT INTO ofPresence(username, offlinePresence, offlineDate) VALUES(?,?,?)";
-    private static final String DELETE_OFFLINE_PRESENCE =
-            "DELETE FROM ofPresence WHERE username=?";
-
     private static final String NULL_STRING = "NULL";
     private static final long NULL_LONG = -1L;
 
@@ -89,6 +85,12 @@ public class PresenceManagerImpl extends BasicModule implements PresenceManager,
 
     private Cache<String, Long> lastActivityCache;
     private Cache<String, String> offlinePresenceCache;
+
+    
+    /**
+     * Provider for underlying storage
+     */
+    private final PresenceProvider provider = ProviderFactory.getPresenceProvider();
 
     public PresenceManagerImpl() {
         super("Presence manager");
@@ -203,28 +205,11 @@ public class PresenceManagerImpl extends BasicModule implements PresenceManager,
                 return;
             }
 
-            deleteOfflinePresenceFromDB(username);
+            provider.deleteOfflinePresenceFromDB(username);
 
             // Remove data from cache.
             offlinePresenceCache.remove(username);
             lastActivityCache.remove(username);
-        }
-    }
-
-    private void deleteOfflinePresenceFromDB(String username) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(DELETE_OFFLINE_PRESENCE);
-            pstmt.setString(1, username);
-            pstmt.execute();
-        }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
-        finally {
-            DbConnectionManager.closeConnection(pstmt, con);
         }
     }
 
@@ -265,32 +250,11 @@ public class PresenceManagerImpl extends BasicModule implements PresenceManager,
             }
             lastActivityCache.put(username, offlinePresenceDate.getTime());
 
-            writeToDatabase(username, offlinePresence, offlinePresenceDate);
-        }
-    }
-
-    private void writeToDatabase(String username, String offlinePresence, Date offlinePresenceDate) {
-        // delete existing offline presence (if any)
-        deleteOfflinePresenceFromDB(username);
-
-        // Insert data into the database.
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement(INSERT_OFFLINE_PRESENCE);
-            pstmt.setString(1, username);
-            if (offlinePresence != null) {
-                DbConnectionManager.setLargeTextField(pstmt, 2, offlinePresence);
-            } else {
-                pstmt.setNull(2, Types.VARCHAR);
-            }
-            pstmt.setString(3, StringUtils.dateToMillis(offlinePresenceDate));
-            pstmt.execute();
-        } catch (SQLException sqle) {
-            Log.error("Error storing offline presence of user: " + username, sqle);
-        } finally {
-            DbConnectionManager.closeConnection(pstmt, con);
+            // delete existing offline presence (if any)
+            provider.deleteOfflinePresenceFromDB(username);
+            
+            // Insert data into the database.
+            provider.insertOfflinePresenceIntoDB(username, offlinePresence,	offlinePresenceDate);
         }
     }
 
@@ -489,7 +453,7 @@ public class PresenceManagerImpl extends BasicModule implements PresenceManager,
 
     public void userDeleting(User user, Map<String, Object> params) {
         // Delete user information
-        deleteOfflinePresenceFromDB(user.getUsername());
+        provider.deleteOfflinePresenceFromDB(user.getUsername());
     }
 
     public void userModified(User user, Map<String, Object> params) {
@@ -541,37 +505,16 @@ public class PresenceManagerImpl extends BasicModule implements PresenceManager,
      * @param username the username.
      */
     private void loadOfflinePresence(String username) {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
         Lock lock = CacheFactory.getLock(username, offlinePresenceCache);
         try {
             lock.lock();
             if (!offlinePresenceCache.containsKey(username) || !lastActivityCache.containsKey(username)) {
-                con = DbConnectionManager.getConnection();
-                pstmt = con.prepareStatement(LOAD_OFFLINE_PRESENCE);
-                pstmt.setString(1, username);
-                rs = pstmt.executeQuery();
-                if (rs.next()) {
-                    String offlinePresence = DbConnectionManager.getLargeTextField(rs, 1);
-                    if (rs.wasNull()) {
-                        offlinePresence = NULL_STRING;
-                    }
-                    long offlineDate = Long.parseLong(rs.getString(2).trim());
-                    offlinePresenceCache.put(username, offlinePresence);
-                    lastActivityCache.put(username, offlineDate);
-                }
-                else {
-                    offlinePresenceCache.put(username, NULL_STRING);
-                    lastActivityCache.put(username, NULL_LONG);
-                }
+                TimePresence tp = provider.loadOfflinePresence(username);
+                offlinePresenceCache.put(username, tp.getPresence());
+                lastActivityCache.put(username, tp.getLastActivity());
             }
         }
-        catch (SQLException sqle) {
-            Log.error(sqle.getMessage(), sqle);
-        }
         finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);
             lock.unlock();
         }
     }
@@ -585,7 +528,8 @@ public class PresenceManagerImpl extends BasicModule implements PresenceManager,
         for (ClientSession session : XMPPServer.getInstance().getSessionManager().getSessions()) {
             if (!session.isAnonymousUser()) {
                 try {
-                    writeToDatabase(session.getUsername(), null, new Date());
+                	provider.deleteOfflinePresenceFromDB(session.getUsername());
+                	provider.insertOfflinePresenceIntoDB(session.getUsername(), null, new Date());
                 } catch (UserNotFoundException e) {
                     Log.error(e.getMessage(), e);
                 }

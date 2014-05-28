@@ -27,9 +27,6 @@ import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.KeyStore;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -72,6 +69,7 @@ import org.jivesoftware.openfire.net.SSLConfig;
 import org.jivesoftware.openfire.net.ServerTrafficCounter;
 import org.jivesoftware.openfire.pep.IQPEPHandler;
 import org.jivesoftware.openfire.pep.IQPEPOwnerHandler;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.pubsub.PubSubModule;
 import org.jivesoftware.openfire.roster.RosterManager;
 import org.jivesoftware.openfire.session.RemoteSessionLocator;
@@ -435,7 +433,7 @@ public class XMPPServer {
 //                            ((AdminConsolePlugin) pluginManager.getPlugin("admin")).startup();
                         }
 
-                        verifyDataSource();
+                        ProviderFactory.getConnectivityProvider().verifyDataSource();
                         // First load all the modules so that modules may access other modules while
                         // being initialized
                         loadModules();
@@ -469,7 +467,7 @@ public class XMPPServer {
 
             // If the server has already been setup then we can start all the server's modules
             if (!setupMode) {
-                verifyDataSource();
+            	ProviderFactory.getConnectivityProvider().verifyDataSource();
                 // First load all the modules so that modules may access other modules while
                 // being initialized
                 loadModules();
@@ -736,31 +734,6 @@ public class XMPPServer {
             standalone = false;
         }
         return standalone;
-    }
-
-    /**
-     * Verify that the database is accessible.
-     */
-    private void verifyDataSource() {
-        Connection con = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        try {
-            con = DbConnectionManager.getConnection();
-            pstmt = con.prepareStatement("SELECT count(*) FROM ofID");
-            rs = pstmt.executeQuery();
-            rs.next();
-        }
-        catch (Exception e) {
-            System.err.println("Database setup or configuration error: " +
-                    "Please verify your database settings and check the " +
-                    "logs/error.log file for detailed error messages.");
-            Log.error("Database could not be accessed", e);
-            throw new IllegalArgumentException(e);
-        }
-        finally {
-            DbConnectionManager.closeConnection(rs, pstmt, con);
-        }
     }
 
     /**

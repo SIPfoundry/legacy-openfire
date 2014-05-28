@@ -24,12 +24,13 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.net.URL;
 
+import org.jivesoftware.openfire.provider.AuthProvider;
 import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.user.NativeUserProvider;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
-import org.jivesoftware.openfire.user.UserProvider;
+import org.jivesoftware.openfire.provider.UserProvider;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.StringUtils;
 import org.slf4j.Logger;

@@ -58,8 +58,8 @@ import org.dom4j.Document;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.jivesoftware.admin.AdminConsole;
-import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.Version;
 import org.slf4j.Logger;
@@ -449,7 +449,7 @@ public class PluginManager {
                 }
 
                 // Check the plugin's database schema (if it requires one).
-                if (!DbConnectionManager.getSchemaManager().checkPluginSchema(plugin)) {
+                if (!ProviderFactory.getConnectionManagerWrapper().checkPluginSchema(plugin)) {
                     // The schema was not there and auto-upgrade failed.
                     Log.error(pluginName + " - " +
                             LocaleUtils.getLocalizedString("upgrade.database.failure"));

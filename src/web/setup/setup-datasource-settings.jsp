@@ -9,7 +9,7 @@
 <%@ page import="org.jivesoftware.util.ParamUtils,
                  org.jivesoftware.util.JiveGlobals,
                  org.jivesoftware.database.EmbeddedConnectionProvider,
-                 org.jivesoftware.database.DbConnectionManager,
+                 org.jivesoftware.openfire.provider.ProviderFactory,
                  org.jivesoftware.database.ConnectionProvider,
                  java.util.*" %>
 <%@ page import="java.io.File"%>
@@ -36,37 +36,15 @@
 
     boolean testConnection(Map<String,String> errors) {
         boolean success = true;
-        Connection con = null;
         try {
-            con = DbConnectionManager.getConnection();
-            if (con == null) {
-                success = false;
-                errors.put("general","A connection to the database could not be "
-                    + "made. View the error message by opening the "
-                    + "\"" + File.separator + "logs" + File.separator + "error.log\" log "
-                    + "file, then go back to fix the problem.");
-            }
-            else {
-            	// See if the Jive db schema is installed.
-            	try {
-            		Statement stmt = con.createStatement();
-            		// Pick an arbitrary table to see if it's there.
-            		stmt.executeQuery("SELECT * FROM ofID");
-            		stmt.close();
-            	}
-            	catch (SQLException sqle) {
-                    success = false;
-                    errors.put("general","The Openfire database schema does not "
-                        + "appear to be installed. Follow the installation guide to "
-                        + "fix this error.");
-            	}
-            }
+            ProviderFactory.getConnectivityProvider().verifyDataSource();
         }
-        catch (Exception ignored) {}
-        finally {
-            try {
-        	    con.close();
-            } catch (Exception ignored) {}
+        catch (Exception e) {
+            success = false;
+            e.printStackTrace();
+            errors.put("general","The Openfire database schema does not "
+                + "appear to be installed. Follow the installation guide to "
+                + "fix this error.");
         }
         return success;
     }
@@ -102,7 +80,7 @@
             JiveGlobals.setXMLProperty("connectionProvider.className",
                     "org.jivesoftware.database.EmbeddedConnectionProvider");
             ConnectionProvider conProvider = new EmbeddedConnectionProvider();
-            DbConnectionManager.setConnectionProvider(conProvider);
+            ProviderFactory.getConnectionManagerWrapper().setConnectionProvider(conProvider);
             if (testConnection(errors)) {
                 // Redirect
                 response.sendRedirect("setup-profile-settings.jsp");

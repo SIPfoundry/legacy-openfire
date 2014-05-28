@@ -31,6 +31,8 @@ import java.util.List;
 
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.provider.GroupPropertiesProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.JID;
@@ -50,14 +52,10 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
         "UPDATE ofGroup SET description=? WHERE groupName=?";
     private static final String SET_GROUP_NAME_1 =
         "UPDATE ofGroup SET groupName=? WHERE groupName=?";
-    private static final String SET_GROUP_NAME_2 =
-        "UPDATE ofGroupProp SET groupName=? WHERE groupName=?";
     private static final String SET_GROUP_NAME_3 =
         "UPDATE ofGroupUser SET groupName=? WHERE groupName=?";
     private static final String DELETE_GROUP_USERS =
         "DELETE FROM ofGroupUser WHERE groupName=?";
-    private static final String DELETE_PROPERTIES =
-        "DELETE FROM ofGroupProp WHERE groupName=?";
     private static final String DELETE_GROUP =
         "DELETE FROM ofGroup WHERE groupName=?";
     private static final String GROUP_COUNT = "SELECT count(*) FROM ofGroup";
@@ -79,6 +77,12 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
     private static final String SEARCH_GROUP_NAME = "SELECT groupName FROM ofGroup WHERE groupName LIKE ? ORDER BY groupName";
 
     private XMPPServer server = XMPPServer.getInstance();
+
+    /**
+     * Provider for underlying storage
+     */
+    private final GroupPropertiesProvider propsProvider = ProviderFactory.getGroupPropertiesProvider();
+
 
     public Group createGroup(String name) {
         Connection con = null;
@@ -160,17 +164,14 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
             pstmt.setString(2, oldName);
             pstmt.executeUpdate();
             DbConnectionManager.fastcloseStmt(pstmt);
-            
-            pstmt = con.prepareStatement(SET_GROUP_NAME_2);
-            pstmt.setString(1, newName);
-            pstmt.setString(2, oldName);
-            pstmt.executeUpdate();
-            DbConnectionManager.fastcloseStmt(pstmt);
-            
-            pstmt = con.prepareStatement(SET_GROUP_NAME_3);
-            pstmt.setString(1, newName);
-            pstmt.setString(2, oldName);
-            pstmt.executeUpdate();
+
+            boolean renamed = propsProvider.setName(oldName, newName);
+            if (renamed) {
+                pstmt = con.prepareStatement(SET_GROUP_NAME_3);
+                pstmt.setString(1, newName);
+                pstmt.setString(2, oldName);
+                pstmt.executeUpdate();
+            }
         }
         catch (SQLException e) {
             Log.error(e.getMessage(), e);
@@ -195,15 +196,14 @@ public class DefaultGroupProvider extends AbstractGroupProvider {
             DbConnectionManager.fastcloseStmt(pstmt);
             
             // Remove all properties of the group.
-            pstmt = con.prepareStatement(DELETE_PROPERTIES);
-            pstmt.setString(1, groupName);
-            pstmt.executeUpdate();
-            DbConnectionManager.fastcloseStmt(pstmt);
+            boolean propsDeleted = propsProvider.deleteGroupProperties(groupName);
             
-            // Remove the group entry.
-            pstmt = con.prepareStatement(DELETE_GROUP);
-            pstmt.setString(1, groupName);
-            pstmt.executeUpdate();
+            if (propsDeleted) {
+                // Remove the group entry.
+                pstmt = con.prepareStatement(DELETE_GROUP);
+                pstmt.setString(1, groupName);
+                pstmt.executeUpdate();
+            }
         }
         catch (SQLException e) {
             Log.error(e.getMessage(), e);

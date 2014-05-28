@@ -25,6 +25,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 import org.jivesoftware.openfire.lockout.LockOutManager;
+import org.jivesoftware.openfire.provider.AuthProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.Blowfish;
 import org.jivesoftware.util.ClassUtils;
@@ -90,22 +92,7 @@ public class AuthFactory {
     }
 
     private static void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.auth.className");
-
-        String className = JiveGlobals.getProperty("provider.auth.className",
-                "org.jivesoftware.openfire.auth.DefaultAuthProvider");
-        // Check if we need to reset the auth provider class 
-        if (authProvider == null || !className.equals(authProvider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                authProvider = (AuthProvider)c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading auth provider: " + className, e);
-                authProvider = new DefaultAuthProvider();
-            }
-        }
+    	authProvider = ProviderFactory.getAuthProvider();
     }
 
     /**

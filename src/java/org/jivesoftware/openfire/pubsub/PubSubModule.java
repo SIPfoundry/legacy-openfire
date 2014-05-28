@@ -42,6 +42,8 @@ import org.jivesoftware.openfire.disco.DiscoItem;
 import org.jivesoftware.openfire.disco.DiscoItemsProvider;
 import org.jivesoftware.openfire.disco.DiscoServerItem;
 import org.jivesoftware.openfire.disco.ServerItemsProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.openfire.pubsub.models.AccessModel;
 import org.jivesoftware.openfire.pubsub.models.PublisherModel;
 import org.jivesoftware.util.JiveGlobals;
@@ -342,6 +344,8 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         JiveGlobals.migrateProperty("xmpp.pubsub.root.creator");
         JiveGlobals.migrateProperty("xmpp.pubsub.multiple-subscriptions");
 
+        PubSubProvider provider = ProviderFactory.getPubsubProvider();
+
         // Listen to property events so that the template is always up to date
         PropertyEventDispatcher.addListener(this);
 
@@ -377,7 +381,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         engine = new PubSubEngine(router);
 
         // Load default configuration for leaf nodes
-        leafDefaultConfiguration = PubSubPersistenceManager.loadDefaultConfiguration(this, true);
+        leafDefaultConfiguration = provider.loadDefaultConfiguration(this, true);
         if (leafDefaultConfiguration == null) {
             // Create and save default configuration for leaf nodes;
             leafDefaultConfiguration = new DefaultNodeConfiguration(true);
@@ -395,11 +399,11 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             leafDefaultConfiguration.setSendItemSubscribe(true);
             leafDefaultConfiguration.setSubscriptionEnabled(true);
             leafDefaultConfiguration.setReplyPolicy(null);
-            PubSubPersistenceManager.createDefaultConfiguration(this, leafDefaultConfiguration);
+            provider.createDefaultConfiguration(this, leafDefaultConfiguration);
         }
         // Load default configuration for collection nodes
         collectionDefaultConfiguration =
-                PubSubPersistenceManager.loadDefaultConfiguration(this, false);
+        		provider.loadDefaultConfiguration(this, false);
         if (collectionDefaultConfiguration == null ) {
             // Create and save default configuration for collection nodes;
             collectionDefaultConfiguration = new DefaultNodeConfiguration(false);
@@ -416,12 +420,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
             collectionDefaultConfiguration
                     .setAssociationPolicy(CollectionNode.LeafNodeAssociationPolicy.all);
             collectionDefaultConfiguration.setMaxLeafNodes(-1);
-            PubSubPersistenceManager
+            provider
                     .createDefaultConfiguration(this, collectionDefaultConfiguration);
         }
 
         // Load nodes to memory
-        PubSubPersistenceManager.loadNodes(this);
+        provider.loadNodes(this);
         // Ensure that we have a root collection node
         String rootNodeID = JiveGlobals.getProperty("xmpp.pubsub.root.nodeID", "");
         if (nodes.isEmpty()) {

@@ -34,7 +34,7 @@ import org.xmpp.packet.JID;
  * 
  * @author Gaston Dombiak
  */
-class ConversationLogEntry {
+public class ConversationLogEntry {
 
     private final Date date;
 

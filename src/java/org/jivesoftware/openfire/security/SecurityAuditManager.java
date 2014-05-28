@@ -22,6 +22,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.SecurityAuditProvider;
 import org.jivesoftware.util.ClassUtils;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.PropertyEventDispatcher;
@@ -109,22 +111,7 @@ public class SecurityAuditManager {
      * DefaultSecurityAuditProvider if the specified provider is not valid or not specified.
      */
     private void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.securityAudit.className");
-
-        String className = JiveGlobals.getProperty("provider.securityAudit.className",
-                "org.jivesoftware.openfire.security.DefaultSecurityAuditProvider");
-        // Check if we need to reset the provider class
-        if (provider == null || !className.equals(provider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                provider = (SecurityAuditProvider) c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading security audit provider: " + className, e);
-                provider = new DefaultSecurityAuditProvider();
-            }
-        }
+    	provider = ProviderFactory.getSecurityAuditProvider();
     }
 
     /**

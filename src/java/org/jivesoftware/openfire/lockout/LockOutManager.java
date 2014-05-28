@@ -21,8 +21,8 @@ package org.jivesoftware.openfire.lockout;
 import java.util.Date;
 import java.util.Map;
 
-import org.jivesoftware.util.ClassUtils;
-import org.jivesoftware.util.JiveGlobals;
+import org.jivesoftware.openfire.provider.LockOutProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.cache.Cache;
@@ -115,22 +115,7 @@ public class LockOutManager {
      * DefaultLockOutProvider if the specified provider is not valid or not specified.
      */
     private void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.lockout.className");
-
-        String className = JiveGlobals.getProperty("provider.lockout.className",
-                "org.jivesoftware.openfire.lockout.DefaultLockOutProvider");
-        // Check if we need to reset the provider class
-        if (provider == null || !className.equals(provider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                provider = (LockOutProvider) c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading lockout provider: " + className, e);
-                provider = new DefaultLockOutProvider();
-            }
-        }
+    	provider = ProviderFactory.getLockoutProvider();
     }
 
     /**

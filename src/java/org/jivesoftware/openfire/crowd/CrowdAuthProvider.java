@@ -18,10 +18,10 @@ package org.jivesoftware.openfire.crowd;
 import java.rmi.RemoteException;
 
 import org.jivesoftware.openfire.XMPPServer;
-import org.jivesoftware.openfire.auth.AuthProvider;
 import org.jivesoftware.openfire.auth.ConnectionException;
 import org.jivesoftware.openfire.auth.InternalUnauthenticatedException;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
+import org.jivesoftware.openfire.provider.AuthProvider;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

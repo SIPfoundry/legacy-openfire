@@ -26,6 +26,7 @@ import java.sql.Types;
 import java.util.Date;
 
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.provider.LockOutProvider;
 import org.jivesoftware.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +58,7 @@ public class DefaultLockOutProvider implements LockOutProvider {
 
     /**
      * Default provider retrieves disabled status from ofUserFlag table.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#getDisabledStatus(String)
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#getDisabledStatus(String)
      */
     public LockOutFlag getDisabledStatus(String username) {
         Connection con = null;
@@ -96,7 +97,7 @@ public class DefaultLockOutProvider implements LockOutProvider {
 
     /**
      * Default provider deletes existing flag, if it exists, and adds new described flag in ofUserFlag table.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#setDisabledStatus(LockOutFlag)
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#setDisabledStatus(LockOutFlag)
      */
     public void setDisabledStatus(LockOutFlag flag) {
         Connection con = null;
@@ -141,7 +142,7 @@ public class DefaultLockOutProvider implements LockOutProvider {
 
     /**
      * Default provider deletes existing flag from ofUserFlag table.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#unsetDisabledStatus(String)
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#unsetDisabledStatus(String)
      */
     public void unsetDisabledStatus(String username) {
         Connection con = null;
@@ -162,7 +163,7 @@ public class DefaultLockOutProvider implements LockOutProvider {
 
     /**
      * Default provider allows editing of disabled status.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#isReadOnly()
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#isReadOnly()
      */
     public boolean isReadOnly() {
         return false;
@@ -170,7 +171,7 @@ public class DefaultLockOutProvider implements LockOutProvider {
 
     /**
      * Default provider allows delayed start to disabled status.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#isDelayedStartSupported()
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#isDelayedStartSupported()
      */
     public boolean isDelayedStartSupported() {
         return true;
@@ -178,7 +179,7 @@ public class DefaultLockOutProvider implements LockOutProvider {
 
     /**
      * Default provider allows timeout of disabled status.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#isTimeoutSupported()
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#isTimeoutSupported()
      */
     public boolean isTimeoutSupported() {
         return true;
@@ -186,7 +187,7 @@ public class DefaultLockOutProvider implements LockOutProvider {
 
     /**
      * Default provider should be cached.
-     * @see org.jivesoftware.openfire.lockout.LockOutProvider#shouldNotBeCached()
+     * @see org.jivesoftware.openfire.provider.LockOutProvider#shouldNotBeCached()
      */
     public boolean shouldNotBeCached() {
         return false;

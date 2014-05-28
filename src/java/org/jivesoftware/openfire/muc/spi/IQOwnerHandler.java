@@ -35,6 +35,8 @@ import org.jivesoftware.openfire.muc.ConflictException;
 import org.jivesoftware.openfire.muc.ForbiddenException;
 import org.jivesoftware.openfire.muc.MUCRole;
 import org.jivesoftware.openfire.muc.cluster.RoomUpdatedEvent;
+import org.jivesoftware.openfire.provider.MultiUserChatProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.LocaleUtils;
@@ -69,6 +71,11 @@ public class IQOwnerHandler {
     private Element probeResult;
 
     private final boolean skipInvite;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final MultiUserChatProvider provider = ProviderFactory.getMUCProvider();
 
     public IQOwnerHandler(LocalMUCRoom chatroom, PacketRouter packetRouter) {
         this.room = chatroom;
@@ -456,7 +463,7 @@ public class IQOwnerHandler {
             boolean isPersistent = ("1".equals(booleanValue));
             // Delete the room from the DB if it's no longer persistent
             if (room.isPersistent() && !isPersistent) {
-                MUCPersistenceManager.deleteFromDB(room);
+            	provider.deleteFromDB(room);
             }
             room.setPersistent(isPersistent);
         }

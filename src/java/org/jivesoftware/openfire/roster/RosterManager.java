@@ -31,6 +31,8 @@ import org.jivesoftware.openfire.event.UserEventListener;
 import org.jivesoftware.openfire.group.Group;
 import org.jivesoftware.openfire.group.GroupManager;
 import org.jivesoftware.openfire.group.GroupNotFoundException;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.RosterItemProvider;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.openfire.user.UserNotFoundException;
@@ -962,20 +964,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
     }
 
     private void initProvider() {
-        JiveGlobals.migrateProperty("provider.roster.className");
-        String className = JiveGlobals.getProperty("provider.roster.className",
-                "org.jivesoftware.openfire.roster.DefaultRosterItemProvider");
-
-        if (provider == null || !className.equals(provider.getClass().getName())) {
-            try {
-                Class c = ClassUtils.forName(className);
-                provider = (RosterItemProvider) c.newInstance();
-            }
-            catch (Exception e) {
-                Log.error("Error loading roster provider: " + className, e);
-                provider = new DefaultRosterItemProvider();
-            }
-        }
+    	provider = ProviderFactory.getRosterProvider();
 
     }
 

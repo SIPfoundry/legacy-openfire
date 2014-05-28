@@ -29,7 +29,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -59,7 +58,7 @@ import org.xmpp.packet.JID;
  *
  * @author Matt Tucker
  */
-public class PubSubPersistenceManager {
+public class PubSubPersistenceManager extends BasePubSubProvider {
 
     private static final Logger log = LoggerFactory.getLogger(PubSubPersistenceManager.class);
 
@@ -73,14 +72,6 @@ public class PubSubPersistenceManager {
 			"ON ofPubsubItem.id = noDelete.id WHERE noDelete.id IS NULL AND " +
 			"ofPubsubItem.serviceID = ? AND nodeID = ?";
     
-    private static final String PURGE_FOR_SIZE_POSTGRESQL = 
-    		"DELETE from ofPubsubItem where id in " +
-    		"(select ofPubsubItem.id FROM ofPubsubItem LEFT JOIN " +
-    		"(SELECT id FROM ofPubsubItem WHERE serviceID=? AND nodeID=? " +
-    		"ORDER BY creationDate DESC LIMIT ?) AS noDelete " +
-    		"ON ofPubsubItem.id = noDelete.id WHERE noDelete.id IS NULL " +
-    		"AND ofPubsubItem.serviceID = ? AND nodeID = ?)";
-
 	private static final String PURGE_FOR_SIZE_HSQLDB = "DELETE FROM ofPubsubItem WHERE serviceID=? AND nodeID=? AND id NOT IN "
 			+ "(SELECT id FROM ofPubsubItem WHERE serviceID=? AND nodeID=? ORDER BY creationDate DESC LIMIT ?)";
 
@@ -251,6 +242,9 @@ public class PubSubPersistenceManager {
      * RetryWrapper to allow multiple persistence attempts when needed.
      */
     private static final HashMap<String, LinkedListNode<RetryWrapper>> itemsPending = new HashMap<String, LinkedListNode<RetryWrapper>>();
+
+    // formerly in PEPServiceManager
+    private final static String GET_PEP_SERVICE = "SELECT DISTINCT serviceID FROM ofPubsubNode WHERE serviceID=?";
     
     /**
      * Cache name for recently accessed published items.
@@ -262,7 +256,7 @@ public class PubSubPersistenceManager {
      */
     private static final Cache<String, PublishedItem> itemCache = CacheFactory.createCache(ITEM_CACHE);
     
-    static {
+    public PubSubPersistenceManager() {
     	try {
         	if (MAX_ITEMS_FLUSH > 0) {
         		TaskEngine.getInstance().schedule(new TimerTask() {
@@ -290,7 +284,7 @@ public class PubSubPersistenceManager {
      *
      * @param node The newly created node.
      */
-    public static void createNode(Node node) {
+    public void createNode(Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -364,7 +358,7 @@ public class PubSubPersistenceManager {
      *
      * @param node The updated node.
      */
-    public static void updateNode(Node node) {
+    public void updateNode(Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -499,7 +493,7 @@ public class PubSubPersistenceManager {
      * @param node The node that is being deleted.
      * @return true If the operation was successful.
      */
-    public static boolean removeNode(Node node) {
+    public boolean removeNode(Node node) {
         Connection con = null;
         PreparedStatement pstmt = null;
         boolean abortTransaction = false;
@@ -561,7 +555,7 @@ public class PubSubPersistenceManager {
      *
      * @param service the pubsub service that is hosting the nodes.
      */
-    public static void loadNodes(PubSubService service) {
+    public void loadNodes(PubSubService service) {
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
@@ -633,7 +627,7 @@ public class PubSubPersistenceManager {
             rs = pstmt.executeQuery();
             // Add to each node the correspondiding subscriptions
             while(rs.next()) {
-                loadSubscriptions(service, nodes, rs);
+                loadSubscriptions(nodes, rs);
             }
             DbConnectionManager.fastcloseStmt(rs, pstmt);
         }
@@ -660,7 +654,7 @@ public class PubSubPersistenceManager {
 	 * @param service
 	 *            the pubsub service that is hosting the nodes.
 	 */
-	public static void loadNode(PubSubService service, String nodeId)
+	public void loadNode(PubSubService service, String nodeId)
 	{
 		Connection con = null;
 		PreparedStatement pstmt = null;
@@ -740,7 +734,7 @@ public class PubSubPersistenceManager {
 			// Add to each node the corresponding subscriptions
 			while (rs.next())
 			{
-				loadSubscriptions(service, nodes, rs);
+				loadSubscriptions(nodes, rs);
 			}
 			DbConnectionManager.fastcloseStmt(rs, pstmt);
 		}
@@ -766,7 +760,7 @@ public class PubSubPersistenceManager {
 		}
 	}
 
-    private static void loadNode(PubSubService service, Map<String, Node> loadedNodes, Map<String, String> parentMappings, ResultSet rs) {
+    private void loadNode(PubSubService service, Map<String, Node> loadedNodes, Map<String, String> parentMappings, ResultSet rs) {
         Node node;
         try {
             String nodeID = decodeNodeID(rs.getString(1));
@@ -886,7 +880,7 @@ public class PubSubPersistenceManager {
         }
     }
 
-	public static void loadSubscription(PubSubService service, Node node, String subId)
+	public void loadSubscription(Node node, String subId)
 	{
 		Connection con = null;
 		PreparedStatement pstmt = null;
@@ -900,7 +894,7 @@ public class PubSubPersistenceManager {
 
 			// Get subscriptions to all nodes
 			pstmt = con.prepareStatement(LOAD_NODE_SUBSCRIPTION);
-			pstmt.setString(1, service.getServiceID());
+			pstmt.setString(1, node.getService().getServiceID());
 			pstmt.setString(2, node.getNodeID());
 			pstmt.setString(3, subId);
 			rs = pstmt.executeQuery();
@@ -908,7 +902,7 @@ public class PubSubPersistenceManager {
 			// Add to each node the corresponding subscription
 			if (rs.next())
 			{
-				loadSubscriptions(service, nodes, rs);
+				loadSubscriptions(nodes, rs);
 			}
 		}
 		catch (SQLException sqle)
@@ -921,7 +915,7 @@ public class PubSubPersistenceManager {
 		}
 	}
 
-    private static void loadSubscriptions(PubSubService service, Map<String, Node> nodes, ResultSet rs) {
+    private void loadSubscriptions(Map<String, Node> nodes, ResultSet rs) {
         try {
             String nodeID = decodeNodeID(rs.getString(1));
             Node node = nodes.get(nodeID);
@@ -966,7 +960,7 @@ public class PubSubPersistenceManager {
      * @param affiliate The new affiliation of the user in the node.
      * @param create    True if this is a new affiliate.
      */
-    public static void saveAffiliation(Node node, NodeAffiliate affiliate, boolean create) {
+    public void saveAffiliation(Node node, NodeAffiliate affiliate, boolean create) {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -1004,7 +998,7 @@ public class PubSubPersistenceManager {
      * @param node      The node where the affiliation of the user was updated.
      * @param affiliate The existing affiliation and subsription state of the user in the node.
      */
-    public static void removeAffiliation(Node node, NodeAffiliate affiliate) {
+    public void removeAffiliation(Node node, NodeAffiliate affiliate) {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -1031,7 +1025,7 @@ public class PubSubPersistenceManager {
      * @param subscription The new subscription of the user to the node.
      * @param create    True if this is a new affiliate.
      */
-    public static void saveSubscription(Node node, NodeSubscription subscription, boolean create) {
+    public void saveSubscription(Node node, NodeSubscription subscription, boolean create) {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -1113,7 +1107,7 @@ public class PubSubPersistenceManager {
      *
      * @param subscription The existing subsription of the user to the node.
      */
-    public static void removeSubscription(NodeSubscription subscription) {
+    public void removeSubscription(NodeSubscription subscription) {
         Connection con = null;
         PreparedStatement pstmt = null;
         try {
@@ -1134,65 +1128,9 @@ public class PubSubPersistenceManager {
     }
 
     /**
-     * Creates and stores the published item in the database. Note that the
-     * item will be cached temporarily before being flushed asynchronously 
-     * to the database. The write cache can be tuned using the following
-     * two properties:
-     * <pre>
-     *   "xmpp.pubsub.flush.max" - maximum items in the cache (-1 to disable cache)
-     *   "xmpp.pubsub.flush.timer" - number of seconds between cache flushes
-     * </pre>
-     * @param item The published item to save.
-     */
-    public static void savePublishedItem(PublishedItem item) {
-    	savePublishedItem(new RetryWrapper(item));
-    }
-
-    /**
-     * Creates and stores the published item in the database. 
-     * @param wrapper The published item, wrapped for retry
-     */
-    private static void savePublishedItem(RetryWrapper wrapper) {
-    	boolean firstPass = (wrapper.getRetryCount() == 0);
-    	PublishedItem item = wrapper.get();
-		String itemKey = item.getItemKey();
-		itemCache.put(itemKey, item);
-		log.debug("Added new (inbound) item to cache");
-        synchronized (itemsPending) {
-    		LinkedListNode<RetryWrapper> itemToReplace = itemsPending.remove(itemKey);
-    		if (itemToReplace != null) {
-    			itemToReplace.remove(); // remove duplicate from itemsToAdd linked list
-    		}
-    		LinkedListNode<RetryWrapper> listNode = firstPass ? 
-    							itemsToAdd.addLast(wrapper) : 
-    							itemsToAdd.addFirst(wrapper);
-    		itemsPending.put(itemKey, listNode);
-        }
-        // skip the flush step if this is a retry attempt
-		if (firstPass && itemsPending.size() > MAX_ITEMS_FLUSH) {
-			TaskEngine.getInstance().submit(new Runnable() {
-				public void run() { flushPendingItems(false); }
-			});
-		}
-    }
-    
-    /**
-     * This class is used internally to wrap PublishedItems. It adds
-     * a retry counter for the persistence exception handling logic.
-     */
-    private static class RetryWrapper {
-    	private PublishedItem item;
-        private volatile transient int retryCount = 0;
-    	public RetryWrapper(PublishedItem item) { this.item = item; }
-    	public PublishedItem get() { return item; }
-    	public int getRetryCount() { return retryCount; }
-    	public int nextRetry() { return ++retryCount; }
-    }
-
-    /**
      * Flush the cache(s) of items to be persisted (itemsToAdd) and deleted (itemsToDelete).
      */
-	public static void flushPendingItems()
+	public void flushPendingItems()
     {
         flushPendingItems(ClusterManager.isClusteringEnabled());
     }
@@ -1201,7 +1139,28 @@ public class PubSubPersistenceManager {
      * Flush the cache(s) of items to be persisted (itemsToAdd) and deleted (itemsToDelete).
      * @param sendToCluster If true, delegate to cluster members, otherwise local only
      */
-    public static void flushPendingItems(boolean sendToCluster)
+    public void flushPendingItems(boolean sendToCluster)
+    {
+		Connection con = null;
+		boolean rollback = false;
+
+		try
+		{
+			con = DbConnectionManager.getTransactionConnection();
+			flushPendingItems(sendToCluster, con);
+		}
+		catch (Exception e)
+		{
+			log.error("Failed to flush pending items", e);
+			rollback = true;
+		}
+		finally
+		{
+			DbConnectionManager.closeTransactionConnection(con, rollback);
+		}
+	}
+
+    private void flushPendingItems(boolean sendToCluster, Connection con) throws SQLException
     {
 		// forward to other cluster members and wait for response
 		if (sendToCluster) {
@@ -1212,8 +1171,6 @@ public class PubSubPersistenceManager {
         	return;	 // nothing to do for this cluster member
         }
         
-		Connection con = null;
-		boolean rollback = false;
     	LinkedList<RetryWrapper> addList = null;
     	LinkedList<PublishedItem> delList = null;
 
@@ -1263,9 +1220,7 @@ public class PubSubPersistenceManager {
 	            node.remove();
 	            node = addList.getLast();
 	        }
-			rollback = true;
-		} finally {
-			DbConnectionManager.closeTransactionConnection(con, rollback);
+	        throw se;
 		}
 	}
 
@@ -1276,7 +1231,7 @@ public class PubSubPersistenceManager {
      * @param delList
      * @throws SQLException
      */
-	private static void writePendingItems(Connection con, LinkedList<RetryWrapper> addList, LinkedList<PublishedItem> delList) throws SQLException
+	private void writePendingItems(Connection con, LinkedList<RetryWrapper> addList, LinkedList<PublishedItem> delList) throws SQLException
 	{
         LinkedListNode<RetryWrapper> addItem = addList.getFirst();
         LinkedListNode<PublishedItem> delItem = delList.getFirst();
@@ -1340,7 +1295,7 @@ public class PubSubPersistenceManager {
 	 * @param batch
 	 * @throws SQLException
 	 */
-	private static void writePendingItems(Connection con, LinkedListNode<RetryWrapper> addItem, boolean batch)  throws SQLException 
+	private void writePendingItems(Connection con, LinkedListNode<RetryWrapper> addItem, boolean batch)  throws SQLException 
 	{	
 		if (addItem == null) { return; }
         LinkedListNode<RetryWrapper> addHead = addItem.previous;
@@ -1387,23 +1342,6 @@ public class PubSubPersistenceManager {
 	}
 
     /**
-     * Removes the specified published item from the DB.
-     *
-     * @param item The published item to delete.
-     */
-    public static void removePublishedItem(PublishedItem item) {
-    	String itemKey = item.getItemKey();
-        itemCache.remove(itemKey);
-        synchronized (itemsPending)
-    	{
-    		itemsToDelete.addLast(item);
-			LinkedListNode<RetryWrapper> itemToAdd = itemsPending.remove(itemKey);
-			if (itemToAdd != null)
-				itemToAdd.remove();  // drop from itemsToAdd linked list
-		}
-    }
-
-    /**
      * Loads from the database the default node configuration for the specified node type
      * and pubsub service.
      *
@@ -1412,7 +1350,7 @@ public class PubSubPersistenceManager {
      * @return the loaded default node configuration for the specified node type and service
      *         or <tt>null</tt> if none was found.
      */
-    public static DefaultNodeConfiguration loadDefaultConfiguration(PubSubService service,
+    public DefaultNodeConfiguration loadDefaultConfiguration(PubSubService service,
             boolean isLeafType) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1464,7 +1402,7 @@ public class PubSubPersistenceManager {
      * @param service the default node configuration used by this pubsub service.
      * @param config the default node configuration to create in the database.
      */
-    public static void createDefaultConfiguration(PubSubService service,
+    public void createDefaultConfiguration(PubSubService service,
             DefaultNodeConfiguration config) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1510,7 +1448,7 @@ public class PubSubPersistenceManager {
      * @param service the default node configuration used by this pubsub service.
      * @param config the default node configuration to update in the database.
      */
-    public static void updateDefaultConfiguration(PubSubService service,
+    public void updateDefaultConfiguration(PubSubService service,
             DefaultNodeConfiguration config) {
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -1556,16 +1494,7 @@ public class PubSubPersistenceManager {
      *
      * @param node the leaf node to load its published items.
      */
-    public static List<PublishedItem> getPublishedItems(LeafNode node) {
-    	return getPublishedItems(node, node.getMaxPublishedItems());
-    }
-
-    /**
-     * Fetches all the results for the specified node, limited by {@link LeafNode#getMaxPublishedItems()}.
-     *
-     * @param node the leaf node to load its published items.
-     */
-    public static List<PublishedItem> getPublishedItems(LeafNode node, int maxRows) {
+    public List<PublishedItem> getPublishedItems(LeafNode node, int maxRows) {
         Lock itemLock = CacheFactory.getLock(ITEM_CACHE, itemCache);
         try {
 	    	// NOTE: force other requests to wait for DB I/O to complete
@@ -1638,7 +1567,7 @@ public class PubSubPersistenceManager {
      *
      * @param node the leaf node to load its last published items.
      */
-    public static PublishedItem getLastPublishedItem(LeafNode node) {
+    public PublishedItem getLastPublishedItem(LeafNode node) {
         Lock itemLock = CacheFactory.getLock(ITEM_CACHE, itemCache);
         try {
         	// NOTE: force other requests to wait for DB I/O to complete
@@ -1683,91 +1612,36 @@ public class PubSubPersistenceManager {
         return item;
     }
 
-    public static PublishedItem getPublishedItem(LeafNode node, String itemID) {
-    	String itemKey = PublishedItem.getItemKey(node, itemID);
-
-        // try to fetch from cache first without locking
-        PublishedItem result = itemCache.get(itemKey);
-    	if (result == null) {
-            Lock itemLock = CacheFactory.getLock(ITEM_CACHE, itemCache);
-            try {
-    	    	// Acquire lock, then re-check cache before reading from DB;
-            	// allows clustered item cache to be primed by first request
-            	itemLock.lock();
-            	result = itemCache.get(itemKey);
-            	if (result == null) {
-	            	flushPendingItems(); 
-	
-	        		// fetch item from DB
-	                Connection con = null;
-	                PreparedStatement pstmt = null;
-	                ResultSet rs = null;
-	                try {
-	                    con = DbConnectionManager.getConnection();
-	                    pstmt = con.prepareStatement(LOAD_ITEM);
-	                    pstmt.setString(1, node.getService().getServiceID());
-	                    pstmt.setString(2, node.getNodeID());
-	                    pstmt.setString(3, itemID);
-	                    rs = pstmt.executeQuery();
-	
-	                    // Add to each node the corresponding subscriptions
-	                    if (rs.next()) {
-	                        JID publisher = new JID(rs.getString(1));
-	                        Date creationDate = new Date(Long.parseLong(rs.getString(2).trim()));
-	                        // Create the item
-	                        result = new PublishedItem(node, publisher, itemID, creationDate);
-	                        // Add the extra fields to the published item
-	                        if (rs.getString(3) != null) {
-	                        	result.setPayloadXML(rs.getString(3));
-	                        }
-	                        itemCache.put(itemKey, result);
-	                		log.debug("Loaded item into cache from DB");
-	                    }
-	                } catch (Exception exc) {
-	                    log.error(exc.getMessage(), exc);
-	                } finally {
-	                    DbConnectionManager.closeConnection(pstmt, con);
-	                }
-            	} else {
-            		log.debug("Found cached item on second attempt (after acquiring lock)");
-            	}
-            } finally {
-            	itemLock.unlock();
-            }
-    	} else {
-    		log.debug("Found cached item on first attempt (no lock)");
-    	}
-        return result;
-	}
-
-	public static void purgeNode(LeafNode leafNode)
+    @Override
+    public PublishedItem loadItem(LeafNode node, String itemID)
 	{
-		Connection con = null;
-		boolean rollback = false;
+    	PublishedItem result = null;
+    	flushPendingItems();
+        // fetch item from DB
+        Connection con = null;
+        boolean rollback = false;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+        	con = DbConnectionManager.getTransactionConnection();
+            pstmt = con.prepareStatement(LOAD_ITEM);
+            pstmt.setString(1, node.getService().getServiceID());
+            pstmt.setString(2, node.getNodeID());
+            pstmt.setString(3, itemID);
+            rs = pstmt.executeQuery();
 
-		try
-		{
-			con = DbConnectionManager.getTransactionConnection();
-
-			purgeNode(leafNode, con);
-
-			// Delete all the entries from the itemsToAdd list and pending map
-			// that match this node.
-			synchronized (itemsPending)
-			{
-				Iterator<Map.Entry<String, LinkedListNode<RetryWrapper>>> pendingIt = itemsPending.entrySet().iterator();
-
-				while (pendingIt.hasNext())
-				{
-					LinkedListNode<RetryWrapper> itemNode = pendingIt.next().getValue();
-
-					if (itemNode.object.get().getNodeID().equals(leafNode.getNodeID()))
-					{
-						itemNode.remove();
-						pendingIt.remove();
-					}
-				}
-			}
+			 // Add to each node the corresponding subscriptions
+            if (rs.next()) {
+                JID publisher = new JID(rs.getString(1));
+                Date creationDate = new Date(Long.parseLong(rs.getString(2).trim()));
+                // Create the item
+                result = new PublishedItem(node, publisher, itemID, creationDate);
+                // Add the extra fields to the published item
+                if (rs.getString(3) != null) {
+                	result.setPayloadXML(rs.getString(3));
+                }
+                log.debug("Loaded item into cache from DB");
+            }
 		}
 		catch (SQLException exc)
 		{
@@ -1778,9 +1652,28 @@ public class PubSubPersistenceManager {
 		{
 			DbConnectionManager.closeTransactionConnection(con, rollback);
 		}
+        return result;
 	}
 
-	private static void purgeNode(LeafNode leafNode, Connection con) throws SQLException
+    @Override
+    protected boolean purgeNodeFromDB(LeafNode leafNode) {
+        Connection con = null;
+        boolean rollback = false;
+        try {
+            con = DbConnectionManager.getTransactionConnection();
+
+            purgeNode(leafNode, con);
+        } catch (SQLException exc) {
+            log.error(exc.getMessage(), exc);
+            rollback = true;
+        } finally {
+            DbConnectionManager.closeTransactionConnection(con, rollback);
+        }
+
+        return rollback;
+    }
+
+	private void purgeNode(LeafNode leafNode, Connection con) throws SQLException
 	{
 		flushPendingItems();
         // Remove published items of the node being deleted
@@ -1857,7 +1750,7 @@ public class PubSubPersistenceManager {
      * Purges all items from the database that exceed the defined item count on
      * all nodes.
      */
-    private static void purgeItems()
+    protected void purgeItems()
     {
 		boolean abortTransaction = false;
         Connection con = null;
@@ -1925,8 +1818,6 @@ public class PubSubPersistenceManager {
 	{
 		switch (type)
 		{
-		case postgresql:
-			return PURGE_FOR_SIZE_POSTGRESQL;
 		case hsqldb:
 			return PURGE_FOR_SIZE_HSQLDB;
 
@@ -1935,14 +1826,27 @@ public class PubSubPersistenceManager {
 		}
 	}
 
-    public static void shutdown()
-    {
-    	log.info("Flushing write cache to database");
-		flushPendingItems(false); // local member only
-		
-		// node cleanup (skip when running as a cluster)
-		if (!ClusterManager.isClusteringEnabled()) {
-			purgeItems();
+	public String loadPEPServiceFromDB(String jid) {
+		String serviceID = null;
+
+		Connection con = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try {
+			con = DbConnectionManager.getConnection();
+			// Get all PEP services
+			pstmt = con.prepareStatement(GET_PEP_SERVICE);
+			pstmt.setString(1, jid);
+			rs = pstmt.executeQuery();
+			// Restore old PEPServices
+			while (rs.next()) {
+				serviceID = rs.getString(1);
+			}
+		} catch (SQLException sqle) {
+			log.error(sqle.getMessage(), sqle);
+		} finally {
+			DbConnectionManager.closeConnection(rs, pstmt, con);
 		}
-    }
+		return serviceID;
+	}
 }

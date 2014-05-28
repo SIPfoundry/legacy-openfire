@@ -67,7 +67,7 @@ import org.slf4j.LoggerFactory;
  *
  * The list of available SASL mechanisms is determined by:
  * <ol>
- *      <li>The type of {@link org.jivesoftware.openfire.user.UserProvider} being used since
+ *      <li>The type of {@link org.jivesoftware.openfire.provider.UserProvider} being used since
  *      some SASL mechanisms require the server to be able to retrieve user passwords</li>
  *      <li>Whether anonymous logins are enabled or not.</li>
  *      <li>Whether shared secret authentication is enabled or not.</li>

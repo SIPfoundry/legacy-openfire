@@ -28,6 +28,8 @@ import java.util.Date;
 import java.util.List;
 
 import org.dom4j.Element;
+import org.jivesoftware.openfire.provider.ProviderFactory;
+import org.jivesoftware.openfire.provider.PubSubProvider;
 import org.jivesoftware.util.LocaleUtils;
 import org.jivesoftware.util.XMPPDateTimeFormat;
 import org.slf4j.Logger;
@@ -135,6 +137,11 @@ public class NodeSubscription {
      * Indicates if the subscription is present in the database.
      */
     private boolean savedToDB = false;
+
+    /**
+     * Provider for underlying storage
+     */
+    private final PubSubProvider provider = ProviderFactory.getPubsubProvider();
 
     /**
      * Creates a new subscription of the specified user with the node.
@@ -496,7 +503,7 @@ public class NodeSubscription {
         }
         if (savedToDB) {
             // Update the subscription in the backend store
-            PubSubPersistenceManager.saveSubscription(node, this, false);
+            provider.saveSubscription(node, this, false);
         }
         // Check if the service needs to subscribe or unsubscribe from the owner presence
         if (!node.isPresenceBasedDelivery() && wasUsingPresence != !presenceStates.isEmpty()) {
@@ -861,7 +868,7 @@ public class NodeSubscription {
 
         if (savedToDB) {
             // Update the subscription in the backend store
-            PubSubPersistenceManager.saveSubscription(node, this, false);
+            provider.saveSubscription(node, this, false);
         }
 
         // Send last published item (if node is leaf node and subscription status is ok)

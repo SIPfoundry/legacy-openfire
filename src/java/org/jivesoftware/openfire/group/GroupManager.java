@@ -22,7 +22,6 @@ package org.jivesoftware.openfire.group;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
 
 import org.jivesoftware.openfire.XMPPServer;
@@ -31,9 +30,9 @@ import org.jivesoftware.openfire.event.GroupEventDispatcher;
 import org.jivesoftware.openfire.event.GroupEventListener;
 import org.jivesoftware.openfire.event.UserEventDispatcher;
 import org.jivesoftware.openfire.event.UserEventListener;
+import org.jivesoftware.openfire.provider.GroupProvider;
+import org.jivesoftware.openfire.provider.ProviderFactory;
 import org.jivesoftware.openfire.user.User;
-import org.jivesoftware.util.ClassUtils;
-import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.PropertyEventDispatcher;
 import org.jivesoftware.util.PropertyEventListener;
 import org.jivesoftware.util.cache.Cache;
@@ -253,20 +252,7 @@ public class GroupManager {
     }
 
     private void initProvider() {
-        // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("provider.group.className");
-
-        // Load a group provider.
-        String className = JiveGlobals.getProperty("provider.group.className",
-                "org.jivesoftware.openfire.group.DefaultGroupProvider");
-        try {
-            Class c = ClassUtils.forName(className);
-            provider = (GroupProvider) c.newInstance();
-        }
-        catch (Exception e) {
-            Log.error("Error loading group provider: " + className, e);
-            provider = new DefaultGroupProvider();
-        }
+    	provider = ProviderFactory.getGroupProvider();
     }
 
     /**
