@@ -392,10 +392,10 @@ public class IQAuthHandler extends IQHandler implements IQAuthInfo {
     @Override
 	public void initialize(XMPPServer server) {
         super.initialize(server);
-        userManager = server.getUserManager();
-        routingTable = server.getRoutingTable();
-        registerHandler = server.getIQRegisterHandler();
-        serverName = server.getServerInfo().getXMPPDomain();
+        userManager = XMPPServer.getInstance().getUserManager();
+        routingTable = XMPPServer.getInstance().getRoutingTable();
+        registerHandler = XMPPServer.getInstance().getIQRegisterHandler();
+        serverName = XMPPServer.getInstance().getServerInfo().getXMPPDomain();
     }
 
     @Override
