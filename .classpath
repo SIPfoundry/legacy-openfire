@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="src/java"/>
+	<classpathentry kind="src" path="src/plugins/hazelcast/src/java"/>
 	<classpathentry kind="src" path="src/plugins/broadcast/src/java"/>
 	<classpathentry kind="src" path="src/plugins/clientControl/src/java"/>
 	<classpathentry kind="src" path="src/plugins/contentFilter/src/java"/>
@@ -150,5 +151,6 @@
 	<classpathentry kind="lib" path="build/lib/dist/bcpg-jdk15on.jar"/>
 	<classpathentry kind="lib" path="build/lib/dist/bcpkix-jdk15on.jar"/>
 	<classpathentry kind="lib" path="build/lib/dist/bcprov-jdk15on.jar"/>
+	<classpathentry kind="lib" path="src/plugins/hazelcast/lib/hazelcast-3.1.7.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
