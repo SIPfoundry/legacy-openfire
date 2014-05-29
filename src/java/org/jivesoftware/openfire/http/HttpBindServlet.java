@@ -104,6 +104,15 @@ public class HttpBindServlet extends HttpServlet {
 		super.service(request, response);
 	}
 
+
+    @Override
+    protected void doOptions(HttpServletRequest request, HttpServletResponse response) throws ServletException,
+            IOException {
+        // Use HttpServlet's implementation to add basic headers ('Allow').
+        super.doOptions(request, response);
+        setCORSHeaders(request, response);
+    }
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException
@@ -378,6 +387,8 @@ public class HttpBindServlet extends HttpServlet {
             }
             content = "_BOSH_(\"" + StringEscapeUtils.escapeJavaScript(content) + "\")";
         }
+
+        setCORSHeaders(request, response);
         
         if (JiveGlobals.getBooleanProperty("log.httpbind.enabled", false)) {
             System.out.println(new Date()+": HTTP SENT(" + session.getStreamID().getID() + "): " + content);
