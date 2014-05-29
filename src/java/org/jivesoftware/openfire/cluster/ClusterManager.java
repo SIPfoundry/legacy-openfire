@@ -54,10 +54,10 @@ public class ClusterManager {
     static {
         // Listen for clustering property changes (e.g. enabled/disabled)
         PropertyEventDispatcher.addListener(new PropertyEventListener() {
-			public void propertySet(String property, Map<String, Object> params) { /* ignore */ }
-			public void propertyDeleted(String property, Map<String, Object> params) { /* ignore */ }
+			public void xmlPropertySet(String property, Map<String, Object> params) { /* ignore */ }
 			public void xmlPropertyDeleted(String property, Map<String, Object> params) { /* ignore */ }
-			public void xmlPropertySet(String property, Map<String, Object> params) {
+			public void propertyDeleted(String property, Map<String, Object> params) { /* ignore */ }
+			public void propertySet(String property, Map<String, Object> params) {
 		        if (ClusterManager.CLUSTER_PROPERTY_NAME.equals(property)) {
 		            if (Boolean.parseBoolean((String) params.get("value"))) {
 		                // Reload/sync all Jive properties
@@ -321,7 +321,7 @@ public class ClusterManager {
             }
         }
         // set the clustering property (listener will start/stop as needed)
-        JiveGlobals.setXMLProperty(CLUSTER_PROPERTY_NAME, Boolean.toString(enabled));
+        JiveGlobals.setProperty(CLUSTER_PROPERTY_NAME, Boolean.toString(enabled));
     }
 
     /**
@@ -331,7 +331,7 @@ public class ClusterManager {
      * @return true if clustering support is enabled.
      */
     public static boolean isClusteringEnabled() {
-        return JiveGlobals.getXMLProperty(CLUSTER_PROPERTY_NAME, false);
+        return JiveGlobals.getBooleanProperty(CLUSTER_PROPERTY_NAME, false);
     }
 
     /**
