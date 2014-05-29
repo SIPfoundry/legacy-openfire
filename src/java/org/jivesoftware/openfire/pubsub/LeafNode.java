@@ -383,19 +383,19 @@ public class LeafNode extends Node {
         return sendItemSubscribe;
     }
 
-    void setMaxPayloadSize(int maxPayloadSize) {
+    public void setMaxPayloadSize(int maxPayloadSize) {
         this.maxPayloadSize = maxPayloadSize;
     }
 
-    void setPersistPublishedItems(boolean persistPublishedItems) {
+    public void setPersistPublishedItems(boolean persistPublishedItems) {
         this.persistPublishedItems = persistPublishedItems;
     }
 
-    void setMaxPublishedItems(int maxPublishedItems) {
+    public void setMaxPublishedItems(int maxPublishedItems) {
         this.maxPublishedItems = maxPublishedItems;
     }
 
-    void setSendItemSubscribe(boolean sendItemSubscribe) {
+    public void setSendItemSubscribe(boolean sendItemSubscribe) {
         this.sendItemSubscribe = sendItemSubscribe;
     }
 

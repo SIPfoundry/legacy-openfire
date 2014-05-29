@@ -1390,7 +1390,7 @@ public abstract class Node {
      *
      * @param groupName the new roster group that is allowed to subscribe and retrieve items.
      */
-    void addAllowedRosterGroup(String groupName) {
+    public void addAllowedRosterGroup(String groupName) {
         rosterGroupsAllowed.add(groupName);
     }
 
@@ -1398,7 +1398,7 @@ public abstract class Node {
         return Collections.unmodifiableCollection(replyRooms);
     }
 
-    void addReplyRoom(JID roomJID) {
+    public void addReplyRoom(JID roomJID) {
         replyRooms.add(roomJID);
     }
 
@@ -1406,7 +1406,7 @@ public abstract class Node {
         return Collections.unmodifiableCollection(replyTo);
     }
 
-    void addReplyTo(JID entity) {
+    public void addReplyTo(JID entity) {
         replyTo.add(entity);
     }
 
@@ -1505,7 +1505,7 @@ public abstract class Node {
      *
      * @param user the JID of the new user.
      */
-    void addContact(JID user) {
+    public void addContact(JID user) {
         contacts.add(user);
     }
 
@@ -1552,11 +1552,11 @@ public abstract class Node {
      *
      * @param deliverPayloads true if event notifications will include payloads.
      */
-    void setPayloadDelivered(boolean deliverPayloads) {
+    public void setPayloadDelivered(boolean deliverPayloads) {
         this.deliverPayloads = deliverPayloads;
     }
 
-    void setReplyPolicy(ItemReplyPolicy replyPolicy) {
+    public void setReplyPolicy(ItemReplyPolicy replyPolicy) {
         this.replyPolicy = replyPolicy;
     }
 
@@ -1566,7 +1566,7 @@ public abstract class Node {
      * @param notifyConfigChanges true if subscribers will be notified when the node
      *        configuration changes.
      */
-    void setNotifiedOfConfigChanges(boolean notifyConfigChanges) {
+    public void setNotifiedOfConfigChanges(boolean notifyConfigChanges) {
         this.notifyConfigChanges = notifyConfigChanges;
     }
 
@@ -1575,7 +1575,7 @@ public abstract class Node {
      *
      * @param notifyDelete true if subscribers will be notified when the node is deleted.
      */
-    void setNotifiedOfDelete(boolean notifyDelete) {
+    public void setNotifiedOfDelete(boolean notifyDelete) {
         this.notifyDelete = notifyDelete;
     }
 
@@ -1585,11 +1585,11 @@ public abstract class Node {
      * @param notifyRetract true if subscribers will be notified when items are removed from
      *        the node.
      */
-    void setNotifiedOfRetract(boolean notifyRetract) {
+    public void setNotifiedOfRetract(boolean notifyRetract) {
         this.notifyRetract = notifyRetract;
     }
 
-    void setPresenceBasedDelivery(boolean presenceBasedDelivery) {
+    public void setPresenceBasedDelivery(boolean presenceBasedDelivery) {
         this.presenceBasedDelivery = presenceBasedDelivery;
     }
 
@@ -1599,7 +1599,7 @@ public abstract class Node {
      * @param publisherModel the publisher model that specifies who is allowed to publish items
      *        to the node.
      */
-    void setPublisherModel(PublisherModel publisherModel) {
+    public void setPublisherModel(PublisherModel publisherModel) {
         this.publisherModel = publisherModel;
     }
 
@@ -1608,7 +1608,7 @@ public abstract class Node {
      *
      * @param subscriptionEnabled true if users are allowed to subscribe and unsubscribe.
      */
-    void setSubscriptionEnabled(boolean subscriptionEnabled) {
+    public void setSubscriptionEnabled(boolean subscriptionEnabled) {
         this.subscriptionEnabled = subscriptionEnabled;
     }
 
@@ -1620,7 +1620,7 @@ public abstract class Node {
      * @param subscriptionConfigurationRequired true if new subscriptions should be
      *        configured to be active.
      */
-    void setSubscriptionConfigurationRequired(boolean subscriptionConfigurationRequired) {
+    public void setSubscriptionConfigurationRequired(boolean subscriptionConfigurationRequired) {
         this.subscriptionConfigurationRequired = subscriptionConfigurationRequired;
     }
 
@@ -1630,7 +1630,7 @@ public abstract class Node {
      * @param accessModel the access model that specifies who is allowed to subscribe and
      *        retrieve items.
      */
-    void setAccessModel(AccessModel accessModel) {
+    public void setAccessModel(AccessModel accessModel) {
         this.accessModel = accessModel;
     }
 
@@ -1659,7 +1659,7 @@ public abstract class Node {
      *
      * @param payloadType the type of payload data to be provided at the node.
      */
-    void setPayloadType(String payloadType) {
+    public void setPayloadType(String payloadType) {
         this.payloadType = payloadType;
     }
 
@@ -1669,7 +1669,7 @@ public abstract class Node {
      *
      * @param bodyXSLT the URL of an XSL transformation which can be applied to payloads.
      */
-    void setBodyXSLT(String bodyXSLT) {
+    public void setBodyXSLT(String bodyXSLT) {
         this.bodyXSLT = bodyXSLT;
     }
 
@@ -1681,11 +1681,11 @@ public abstract class Node {
      * @param dataformXSLT the URL of an XSL transformation which can be applied to the
      *        payload format.
      */
-    void setDataformXSLT(String dataformXSLT) {
+    public void setDataformXSLT(String dataformXSLT) {
         this.dataformXSLT = dataformXSLT;
     }
 
-    void setSavedToDB(boolean savedToDB) {
+    public void setSavedToDB(boolean savedToDB) {
         this.savedToDB = savedToDB;
         if (savedToDB && parent != null) {
             // Notify the parent that he has a new child :)
@@ -1698,7 +1698,7 @@ public abstract class Node {
      *
      * @param creationDate the datetime when the node was created.
      */
-    void setCreationDate(Date creationDate) {
+    public void setCreationDate(Date creationDate) {
         this.creationDate = creationDate;
     }
 
@@ -1707,7 +1707,7 @@ public abstract class Node {
      *
      * @param modificationDate the last date when the ndoe's configuration was modified.
      */
-    void setModificationDate(Date modificationDate) {
+    public void setModificationDate(Date modificationDate) {
         this.modificationDate = modificationDate;
     }
 
@@ -1717,7 +1717,7 @@ public abstract class Node {
      *
      * @param description the description of the node.
      */
-    void setDescription(String description) {
+    public void setDescription(String description) {
         this.description = description;
     }
 
@@ -1727,7 +1727,7 @@ public abstract class Node {
      *
      * @param language the default language of the node.
      */
-    void setLanguage(String language) {
+    public void setLanguage(String language) {
         this.language = language;
     }
 
@@ -1737,7 +1737,7 @@ public abstract class Node {
      *
      * @param name the name of the node.
      */
-    void setName(String name) {
+    public void setName(String name) {
         this.name = name;
     }
 
@@ -1887,7 +1887,7 @@ public abstract class Node {
      *
      * @param newParent the new parent node of this node.
      */
-    protected void changeParent(CollectionNode newParent) {
+    public void changeParent(CollectionNode newParent) {
     	if (parent == newParent) {
     		return;
     	}
