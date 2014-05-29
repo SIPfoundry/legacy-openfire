@@ -216,6 +216,7 @@ public class LdapManager {
         // Convert XML based provider setup to Database based
         JiveGlobals.migrateProperty("ldap.host");
         JiveGlobals.migrateProperty("ldap.port");
+        JiveGlobals.migrateProperty("ldap.connectionTimeout");
         JiveGlobals.migrateProperty("ldap.readTimeout");
         JiveGlobals.migrateProperty("ldap.usernameField");
         JiveGlobals.migrateProperty("ldap.usernameSuffix");
@@ -488,27 +489,13 @@ public class LdapManager {
         }
 
         // Set up the environment for creating the initial context
-        Hashtable<String, Object> env = new Hashtable<String, Object>();
-        env.put(Context.INITIAL_CONTEXT_FACTORY, initialContextFactory);
+        Hashtable<String, Object> env = getEnv(adminPassword);;
         env.put(Context.PROVIDER_URL, getProviderURL(baseDN));
-
-        // SSL
-        if (sslEnabled) {
-            env.put("java.naming.ldap.factory.socket",
-                    "org.jivesoftware.util.SimpleSSLSocketFactory");
-            env.put(Context.SECURITY_PROTOCOL, "ssl");
-        }
 
         // Use simple authentication to connect as the admin.
         if (adminDN != null) {
-            /* If startTLS is requested we MUST NOT bind() before
-             * the secure connection has been established. */
             if (!(startTlsEnabled && !sslEnabled)) {
-                env.put(Context.SECURITY_AUTHENTICATION, "simple");
                 env.put(Context.SECURITY_PRINCIPAL, adminDN);
-                if (adminPassword != null) {
-                    env.put(Context.SECURITY_CREDENTIALS, adminPassword);
-                }
             }
         }
         // No login information so attempt to use anonymous login.
@@ -516,34 +503,6 @@ public class LdapManager {
             env.put(Context.SECURITY_AUTHENTICATION, "none");
         }
 
-        if (ldapDebugEnabled) {
-            env.put("com.sun.jndi.ldap.trace.ber", System.err);
-        }
-        if (connectionPoolEnabled) {
-            if (!startTlsEnabled) {
-                env.put("com.sun.jndi.ldap.connect.pool", "true");
-            } else {
-                if (debug) {
-                    // See http://java.sun.com/products/jndi/tutorial/ldap/connect/pool.html
-                    // "When Not to Use Pooling"
-                    Log.debug("LdapManager: connection pooling was requested but has been disabled because of StartTLS.");
-                }
-                env.put("com.sun.jndi.ldap.connect.pool", "false");
-            }
-        } else {
-            env.put("com.sun.jndi.ldap.connect.pool", "false");
-        }
-
-        if (followReferrals) {
-            env.put(Context.REFERRAL, "follow");
-        }
-        if (!followAliasReferrals) {
-            env.put("java.naming.ldap.derefAliases", "never");
-        }
-
-        if (debug) {
-            Log.debug("LdapManager: Created hashtable with context values, attempting to create context...");
-        }
         // Create new initial context
         JiveInitialLdapContext context = new JiveInitialLdapContext(env, null);
 
@@ -625,51 +584,10 @@ public class LdapManager {
         JiveInitialLdapContext ctx = null;
         try {
             // See if the user authenticates.
-            Hashtable<String, Object> env = new Hashtable<String, Object>();
-            env.put(Context.INITIAL_CONTEXT_FACTORY, initialContextFactory);
+        	Hashtable<String, Object> env = getEnv(password);
             env.put(Context.PROVIDER_URL, getProviderURL(baseDN));
-            if (sslEnabled) {
-                env.put("java.naming.ldap.factory.socket",
-                        "org.jivesoftware.util.SimpleSSLSocketFactory");
-                env.put(Context.SECURITY_PROTOCOL, "ssl");
-            }
-
-            /* If startTLS is requested we MUST NOT bind() before
-             * the secure connection has been established. */
-            if (!(startTlsEnabled && !sslEnabled)) {
-                env.put(Context.SECURITY_AUTHENTICATION, "simple");
-                env.put(Context.SECURITY_PRINCIPAL, userDN + "," + baseDN);
-                env.put(Context.SECURITY_CREDENTIALS, password);
-            } else {
-                if (followReferrals) {
-                    Log.warn("\tConnections to referrals are unencrypted! If you do not want this, please turn off ldap.autoFollowReferrals");
-                }
-            }
-
-            // Set only on non SSL since SSL connections break with a timeout.
-            if (!sslEnabled) {
-                if (connTimeout > 0) {
-                    env.put("com.sun.jndi.ldap.connect.timeout", String.valueOf(connTimeout));
-                } else {
-                    env.put("com.sun.jndi.ldap.connect.timeout", "10000");
-                }
-            }
-            if (readTimeout > 0) {
-                env.put("com.sun.jndi.ldap.read.timeout", String.valueOf(readTimeout));
-            }
-            if (ldapDebugEnabled) {
-                env.put("com.sun.jndi.ldap.trace.ber", System.err);
-            }
-            if (followReferrals) {
-                env.put(Context.REFERRAL, "follow");
-            }
-            if (!followAliasReferrals) {
-                env.put("java.naming.ldap.derefAliases", "never");
-            }
-
-            if (debug) {
-                Log.debug("LdapManager: Created context values, attempting to create context...");
-            }
+            env.put(Context.SECURITY_PRINCIPAL, userDN + "," + baseDN);
+            env.put(Context.SECURITY_CREDENTIALS, password);
             ctx = new JiveInitialLdapContext(env, null);
 
             if (startTlsEnabled && !sslEnabled) {
@@ -730,39 +648,9 @@ public class LdapManager {
                 }
                 try {
                     // See if the user authenticates.
-                    Hashtable<String, Object> env = new Hashtable<String, Object>();
-                    // Use a custom initial context factory if specified. Otherwise, use the default.
-                    env.put(Context.INITIAL_CONTEXT_FACTORY, initialContextFactory);
+                	Hashtable<String, Object> env = getEnv(password);
                     env.put(Context.PROVIDER_URL, getProviderURL(alternateBaseDN));
-                    if (sslEnabled) {
-                        env.put("java.naming.ldap.factory.socket", "org.jivesoftware.util.SimpleSSLSocketFactory");
-                        env.put(Context.SECURITY_PROTOCOL, "ssl");
-                    }
-
-                    /* If startTLS is requested we MUST NOT bind() before
-                     * the secure connection has been established. */
-                    if (!(startTlsEnabled && !sslEnabled)) {
-                        env.put(Context.SECURITY_AUTHENTICATION, "simple");
-                        env.put(Context.SECURITY_PRINCIPAL, userDN + "," + alternateBaseDN);
-                        env.put(Context.SECURITY_CREDENTIALS, password);
-                    }
-                    // Specify timeout to be 10 seconds, only on non SSL since SSL connections
-                    // break with a timemout.
-                    if (!sslEnabled) {
-                        env.put("com.sun.jndi.ldap.connect.timeout", "10000");
-                    }
-                    if (ldapDebugEnabled) {
-                        env.put("com.sun.jndi.ldap.trace.ber", System.err);
-                    }
-                    if (followReferrals) {
-                        env.put(Context.REFERRAL, "follow");
-                    }
-                    if (!followAliasReferrals) {
-                        env.put("java.naming.ldap.derefAliases", "never");
-                    }
-                    if (debug) {
-                        Log.debug("LdapManager: Created context values, attempting to create context...");
-                    }
+                    env.put(Context.SECURITY_PRINCIPAL, userDN + "," + alternateBaseDN);
                     ctx = new JiveInitialLdapContext(env, null);
 
                     if (startTlsEnabled && !sslEnabled) {
@@ -831,6 +719,81 @@ public class LdapManager {
             }
         }
         return true;
+    }
+
+    /**
+     * Builds a map of environment parameters necessary for connecting to LDAP.
+     * Context.PROVIDER_URL and Context.SECURITY_PRINCIPAL parameters are not inserted and must be
+     * handled separately.
+     *
+     * @param password
+     * @return
+     */
+    private Hashtable<String, Object> getEnv(String password) {
+        boolean debug = Log.isDebugEnabled();
+        // Set up the environment for creating the initial context
+        Hashtable<String, Object> env = new Hashtable<String, Object>();
+        // Use a custom initial context factory if specified. Otherwise, use the default.
+        env.put(Context.INITIAL_CONTEXT_FACTORY, initialContextFactory);
+
+        // SSL
+        if (sslEnabled) {
+            env.put("java.naming.ldap.factory.socket", "org.jivesoftware.util.SimpleSSLSocketFactory");
+            env.put(Context.SECURITY_PROTOCOL, "ssl");
+        }
+
+        /*
+         * If startTLS is requested we MUST NOT bind() before the secure connection has been
+         * established.
+         */
+        if (!(startTlsEnabled && !sslEnabled)) {
+            env.put(Context.SECURITY_AUTHENTICATION, "simple");
+            if (password != null) {
+                env.put(Context.SECURITY_CREDENTIALS, password);
+            }
+        }
+        // Set only on non SSL since SSL connections break with a timeout.
+        if (!sslEnabled) {
+            if (connTimeout > 0) {
+                env.put("com.sun.jndi.ldap.connect.timeout", String.valueOf(connTimeout));
+            } else {
+                env.put("com.sun.jndi.ldap.connect.timeout", "10000");
+            }
+        }
+        if (readTimeout > 0) {
+            env.put("com.sun.jndi.ldap.read.timeout", String.valueOf(readTimeout));
+        }
+        if (ldapDebugEnabled) {
+            env.put("com.sun.jndi.ldap.trace.ber", System.err);
+        }
+        if (connectionPoolEnabled) {
+            if (!startTlsEnabled) {
+                env.put("com.sun.jndi.ldap.connect.pool", "true");
+            } else {
+                if (debug) {
+                    // See
+                    // http://java.sun.com/products/jndi/tutorial/ldap/connect/pool.html
+                    // "When Not to Use Pooling"
+                    Log.debug("LdapManager: connection pooling was requested but has been disabled because of StartTLS.");
+                }
+                env.put("com.sun.jndi.ldap.connect.pool", "false");
+            }
+        } else {
+            env.put("com.sun.jndi.ldap.connect.pool", "false");
+        }
+
+        if (followReferrals) {
+            env.put(Context.REFERRAL, "follow");
+        }
+        if (!followAliasReferrals) {
+            env.put("java.naming.ldap.derefAliases", "never");
+        }
+
+        if (debug) {
+            Log.debug("LdapManager: Created hashtable with context values, attempting to create context...");
+        }
+
+        return env;
     }
 
     /**
