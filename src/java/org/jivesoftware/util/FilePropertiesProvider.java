@@ -1,5 +1,6 @@
 package org.jivesoftware.util;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -12,7 +13,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 
-import org.apache.commons.io.IOUtils;
 import org.jivesoftware.openfire.provider.PropertiesProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +35,9 @@ public class FilePropertiesProvider implements PropertiesProvider {
         } catch (IOException e) {
             log.error("Could not read properties file {} - reason {}", PROPS_FILE.getAbsolutePath(), e.getMessage());
         } finally {
-            IOUtils.closeQuietly(reader);
+            if (reader != null) {
+                closeStream(reader);
+            }
         }
 }
 
@@ -91,7 +93,17 @@ public class FilePropertiesProvider implements PropertiesProvider {
         } catch (IOException e) {
             log.error("Could not write properties file {} - reason {}", PROPS_FILE.getAbsolutePath(), e.getMessage());
         } finally {
-            IOUtils.closeQuietly(writer);
+            closeStream((Closeable) writer);
+        }
+    }
+
+    private static void closeStream(Closeable stream) {
+        try {
+            if (stream != null) {
+                stream.close();
+            }
+        } catch (final IOException ioe) {
+            // ignore
         }
     }
 
