@@ -12,7 +12,7 @@ AutoReqProv: no
 URL: http://www.igniterealtime.org/
 
 BuildRequires: ant
-BuildRequires: java-devel >= 1.6
+BuildRequires: java-devel >= 1.7
 
 Requires: chkconfig
 
