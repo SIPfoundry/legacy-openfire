@@ -943,6 +943,7 @@ public class RosterManager extends BasicModule implements GroupEventListener, Us
     @Override
 	public void start() throws IllegalStateException {
         super.start();
+        GroupManager.getInstance();
         // Add this module as a user event listener so we can update
         // rosters when users are created or deleted
         UserEventDispatcher.addListener(this);
