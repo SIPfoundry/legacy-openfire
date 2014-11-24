@@ -150,6 +150,7 @@ public class AdminConsolePlugin implements Plugin {
                 sslContextFactory.setWantClientAuth(false);
                 sslContextFactory.setKeyStorePassword(SSLConfig.getKeyPassword());
                 sslContextFactory.setKeyStoreType(SSLConfig.getStoreType());
+                sslContextFactory.addExcludeProtocols("SSLv3");
                 
                 final SslSelectChannelConnector httpsConnector = new SslSelectChannelConnector(sslContextFactory);
                 String bindInterface = getBindInterface();

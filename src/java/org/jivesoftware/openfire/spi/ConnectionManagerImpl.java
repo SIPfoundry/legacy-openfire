@@ -467,6 +467,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
                         new java.security.SecureRandom());
 
                 SSLFilter sslFilter = new SSLFilter(sslContext);
+                sslFilter.setEnabledProtocols(new String[] {"TLSv1, TLSv1.1, TLSv1.2, SSLv2"});
                 if (JiveGlobals.getProperty("xmpp.client.cert.policy","disabled").equals("needed")) {
                     sslFilter.setNeedClientAuth(true);
                 }

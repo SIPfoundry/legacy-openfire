@@ -219,6 +219,7 @@ public final class HttpBindManager {
                 sslContextFactory.setTrustStore(SSLConfig.getc2sTruststoreLocation());
                 sslContextFactory.setKeyStorePassword(SSLConfig.getKeyPassword());
                 sslContextFactory.setKeyStoreType(SSLConfig.getStoreType());
+                sslContextFactory.addExcludeProtocols("SSLv3");
 
                 // Set policy for checking client certificates
                 String certPol = JiveGlobals.getProperty("xmpp.client.cert.policy", "disabled");
